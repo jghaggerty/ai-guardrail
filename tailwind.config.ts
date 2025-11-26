@@ -47,6 +47,38 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
+        danger: {
+          DEFAULT: "hsl(var(--danger))",
+          foreground: "hsl(var(--danger-foreground))",
+        },
+        chart: {
+          1: "hsl(var(--chart-1))",
+          2: "hsl(var(--chart-2))",
+          3: "hsl(var(--chart-3))",
+          4: "hsl(var(--chart-4))",
+          5: "hsl(var(--chart-5))",
+        },
+        diagnostic: {
+          bg: "hsl(var(--diagnostic-bg))",
+          border: "hsl(var(--diagnostic-border))",
+        },
+        metric: {
+          bg: "hsl(var(--metric-bg))",
+        },
+        severity: {
+          low: "hsl(var(--severity-low))",
+          medium: "hsl(var(--severity-medium))",
+          high: "hsl(var(--severity-high))",
+          critical: "hsl(var(--severity-critical))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
