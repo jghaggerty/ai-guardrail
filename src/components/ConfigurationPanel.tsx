@@ -58,6 +58,7 @@ const heuristics: { value: HeuristicType; label: string; description: string }[]
 
 export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: ConfigurationPanelProps) => {
   const [systemName, setSystemName] = useState('GPT-4');
+  const [customSystemName, setCustomSystemName] = useState('');
   const [iterations, setIterations] = useState(100);
   const [selectedHeuristics, setSelectedHeuristics] = useState<HeuristicType[]>([
     'anchoring',
@@ -75,7 +76,10 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
 
   const handleStart = () => {
     if (selectedHeuristics.length > 0) {
-      onStartEvaluation({ selectedHeuristics, iterations, systemName });
+      const finalSystemName = systemName === 'Custom Model' && customSystemName 
+        ? customSystemName 
+        : systemName;
+      onStartEvaluation({ selectedHeuristics, iterations, systemName: finalSystemName });
     }
   };
 
@@ -107,6 +111,16 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
               ))}
             </SelectContent>
           </Select>
+          
+          {systemName === 'Custom Model' && (
+            <Input
+              placeholder="Enter custom AI system name..."
+              value={customSystemName}
+              onChange={(e) => setCustomSystemName(e.target.value)}
+              className="mt-2"
+              disabled={isRunning}
+            />
+          )}
         </div>
 
         <div>
