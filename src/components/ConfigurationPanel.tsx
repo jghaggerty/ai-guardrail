@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { HeuristicType } from '@/types/bias';
 import { Play, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -16,6 +17,21 @@ interface ConfigurationPanelProps {
   }) => void;
   isRunning: boolean;
 }
+
+const aiSystems = [
+  'GPT-4',
+  'GPT-4 Turbo',
+  'GPT-3.5 Turbo',
+  'Claude 3 Opus',
+  'Claude 3 Sonnet',
+  'Claude 3 Haiku',
+  'Gemini Pro',
+  'Gemini Ultra',
+  'PaLM 2',
+  'Llama 3',
+  'Mistral Large',
+  'Custom Model'
+];
 
 const heuristics: { value: HeuristicType; label: string; description: string }[] = [
   {
@@ -41,7 +57,7 @@ const heuristics: { value: HeuristicType; label: string; description: string }[]
 ];
 
 export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: ConfigurationPanelProps) => {
-  const [systemName, setSystemName] = useState('GPT-4 Production System');
+  const [systemName, setSystemName] = useState('GPT-4');
   const [iterations, setIterations] = useState(100);
   const [selectedHeuristics, setSelectedHeuristics] = useState<HeuristicType[]>([
     'anchoring',
@@ -79,14 +95,18 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
           <Label htmlFor="systemName" className="text-sm font-medium text-card-foreground">
             AI System Identifier
           </Label>
-          <Input
-            id="systemName"
-            value={systemName}
-            onChange={(e) => setSystemName(e.target.value)}
-            placeholder="Enter system name..."
-            className="mt-1.5"
-            disabled={isRunning}
-          />
+          <Select value={systemName} onValueChange={setSystemName} disabled={isRunning}>
+            <SelectTrigger className="mt-1.5">
+              <SelectValue placeholder="Select AI system..." />
+            </SelectTrigger>
+            <SelectContent>
+              {aiSystems.map((system) => (
+                <SelectItem key={system} value={system}>
+                  {system}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
