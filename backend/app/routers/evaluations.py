@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
-import time
 
-from ..database import get_db
+from ..database import get_db, SessionLocal
 from ..models.evaluation import Evaluation, EvaluationStatus
 from ..models.heuristic import HeuristicFinding
 from ..models.recommendation import Recommendation
@@ -91,35 +90,16 @@ def get_evaluation(
     return evaluation
 
 
-@router.post("/{evaluation_id}/execute", response_model=ExecutionResponse)
-def execute_evaluation(
-    evaluation_id: str,
-    db: Session = Depends(get_db)
-):
+def _process_evaluation(evaluation_id: str):
     """
-    Run the heuristic analysis simulation for an evaluation.
+    Background task to process an evaluation asynchronously.
     """
-    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
-
-    if not evaluation:
-        raise_not_found("Evaluation", evaluation_id)
-
-    if evaluation.status != EvaluationStatus.PENDING:
-        raise_validation_error(
-            "status",
-            evaluation.status,
-            f"Evaluation already {evaluation.status.value}"
-        )
-
-    # Update status to running
-    evaluation.status = EvaluationStatus.RUNNING
-    db.commit()
-
-    # Simulate processing time (2-5 seconds based on iterations)
-    processing_time = 2 + (evaluation.iteration_count / 1000) * 3
-    time.sleep(min(processing_time, 5))
-
+    db = SessionLocal()
     try:
+        evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+        if not evaluation:
+            return
+
         # Run heuristic detection
         findings = HeuristicDetector.run_detection(
             evaluation.heuristic_types,
@@ -167,21 +147,53 @@ def execute_evaluation(
         evaluation.zone_status = zone_status
 
         db.commit()
-        db.refresh(evaluation)
 
-        return {
-            "evaluation_id": evaluation.id,
-            "status": evaluation.status,
-            "overall_score": evaluation.overall_score,
-            "zone_status": evaluation.zone_status,
-            "findings_count": len(findings),
-            "message": "Evaluation completed successfully",
-        }
+    except Exception:
+        evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+        if evaluation:
+            evaluation.status = EvaluationStatus.FAILED
+            db.commit()
+    finally:
+        db.close()
 
-    except Exception as e:
-        evaluation.status = EvaluationStatus.FAILED
-        db.commit()
-        raise
+
+@router.post("/{evaluation_id}/execute", response_model=ExecutionResponse)
+def execute_evaluation(
+    evaluation_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    Run the heuristic analysis simulation for an evaluation.
+    Processing happens asynchronously in the background.
+    """
+    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+
+    if not evaluation:
+        raise_not_found("Evaluation", evaluation_id)
+
+    if evaluation.status != EvaluationStatus.PENDING:
+        raise_validation_error(
+            "status",
+            evaluation.status,
+            f"Evaluation already {evaluation.status.value}"
+        )
+
+    # Update status to running
+    evaluation.status = EvaluationStatus.RUNNING
+    db.commit()
+
+    # Queue background task for async processing
+    background_tasks.add_task(_process_evaluation, evaluation_id)
+
+    return {
+        "evaluation_id": evaluation.id,
+        "status": evaluation.status,
+        "overall_score": None,
+        "zone_status": None,
+        "findings_count": 0,
+        "message": "Evaluation started - processing in background",
+    }
 
 
 @router.delete("/{evaluation_id}", status_code=204)
