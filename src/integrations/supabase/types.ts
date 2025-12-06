@@ -14,7 +14,163 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      baselines: {
+        Row: {
+          created_at: string
+          green_zone_max: number
+          id: string
+          name: string
+          statistical_params: Json
+          yellow_zone_max: number
+        }
+        Insert: {
+          created_at?: string
+          green_zone_max: number
+          id?: string
+          name: string
+          statistical_params: Json
+          yellow_zone_max: number
+        }
+        Update: {
+          created_at?: string
+          green_zone_max?: number
+          id?: string
+          name?: string
+          statistical_params?: Json
+          yellow_zone_max?: number
+        }
+        Relationships: []
+      }
+      evaluations: {
+        Row: {
+          ai_system_name: string
+          completed_at: string | null
+          created_at: string
+          heuristic_types: Json
+          id: string
+          iteration_count: number
+          overall_score: number | null
+          status: Database["public"]["Enums"]["evaluation_status"]
+          zone_status: Database["public"]["Enums"]["zone_status"] | null
+        }
+        Insert: {
+          ai_system_name: string
+          completed_at?: string | null
+          created_at?: string
+          heuristic_types: Json
+          id?: string
+          iteration_count: number
+          overall_score?: number | null
+          status?: Database["public"]["Enums"]["evaluation_status"]
+          zone_status?: Database["public"]["Enums"]["zone_status"] | null
+        }
+        Update: {
+          ai_system_name?: string
+          completed_at?: string | null
+          created_at?: string
+          heuristic_types?: Json
+          id?: string
+          iteration_count?: number
+          overall_score?: number | null
+          status?: Database["public"]["Enums"]["evaluation_status"]
+          zone_status?: Database["public"]["Enums"]["zone_status"] | null
+        }
+        Relationships: []
+      }
+      heuristic_findings: {
+        Row: {
+          confidence_level: number
+          created_at: string
+          detection_count: number
+          evaluation_id: string
+          example_instances: Json
+          heuristic_type: Database["public"]["Enums"]["heuristic_type"]
+          id: string
+          pattern_description: string
+          severity: Database["public"]["Enums"]["severity_level"]
+          severity_score: number
+        }
+        Insert: {
+          confidence_level: number
+          created_at?: string
+          detection_count: number
+          evaluation_id: string
+          example_instances: Json
+          heuristic_type: Database["public"]["Enums"]["heuristic_type"]
+          id?: string
+          pattern_description: string
+          severity: Database["public"]["Enums"]["severity_level"]
+          severity_score: number
+        }
+        Update: {
+          confidence_level?: number
+          created_at?: string
+          detection_count?: number
+          evaluation_id?: string
+          example_instances?: Json
+          heuristic_type?: Database["public"]["Enums"]["heuristic_type"]
+          id?: string
+          pattern_description?: string
+          severity?: Database["public"]["Enums"]["severity_level"]
+          severity_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heuristic_findings_evaluation_id_fkey"
+            columns: ["evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "evaluations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recommendations: {
+        Row: {
+          action_title: string
+          created_at: string
+          estimated_impact: Database["public"]["Enums"]["impact_level"]
+          evaluation_id: string
+          heuristic_type: string
+          id: string
+          implementation_difficulty: Database["public"]["Enums"]["difficulty_level"]
+          priority: number
+          simplified_description: string
+          technical_description: string
+        }
+        Insert: {
+          action_title: string
+          created_at?: string
+          estimated_impact: Database["public"]["Enums"]["impact_level"]
+          evaluation_id: string
+          heuristic_type: string
+          id?: string
+          implementation_difficulty: Database["public"]["Enums"]["difficulty_level"]
+          priority: number
+          simplified_description: string
+          technical_description: string
+        }
+        Update: {
+          action_title?: string
+          created_at?: string
+          estimated_impact?: Database["public"]["Enums"]["impact_level"]
+          evaluation_id?: string
+          heuristic_type?: string
+          id?: string
+          implementation_difficulty?: Database["public"]["Enums"]["difficulty_level"]
+          priority?: number
+          simplified_description?: string
+          technical_description?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendations_evaluation_id_fkey"
+            columns: ["evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "evaluations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +179,17 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      difficulty_level: "easy" | "moderate" | "complex"
+      evaluation_status: "pending" | "running" | "completed" | "failed"
+      heuristic_type:
+        | "anchoring"
+        | "loss_aversion"
+        | "sunk_cost"
+        | "confirmation_bias"
+        | "availability_heuristic"
+      impact_level: "low" | "medium" | "high"
+      severity_level: "low" | "medium" | "high" | "critical"
+      zone_status: "green" | "yellow" | "red"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +316,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      difficulty_level: ["easy", "moderate", "complex"],
+      evaluation_status: ["pending", "running", "completed", "failed"],
+      heuristic_type: [
+        "anchoring",
+        "loss_aversion",
+        "sunk_cost",
+        "confirmation_bias",
+        "availability_heuristic",
+      ],
+      impact_level: ["low", "medium", "high"],
+      severity_level: ["low", "medium", "high", "critical"],
+      zone_status: ["green", "yellow", "red"],
+    },
   },
 } as const
