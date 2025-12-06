@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HeuristicFinding, EvaluationRun } from '@/types/bias';
+import { HeuristicFinding, EvaluationRun, EvaluationConfig } from '@/types/bias';
 import { ConfigurationPanel } from '@/components/ConfigurationPanel';
 import { HeuristicCard } from '@/components/HeuristicCard';
 import { LongitudinalChart } from '@/components/LongitudinalChart';
@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { createMockEvaluationRun } from '@/lib/mockData';
+import { runFullEvaluation, ApiError } from '@/lib/api';
 import { Brain, Download, ToggleLeft, TrendingDown, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -21,32 +21,36 @@ const Index = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const handleStartEvaluation = async (config: any) => {
+  const handleStartEvaluation = async (config: EvaluationConfig) => {
     setIsRunning(true);
     setProgress(0);
-    
-    // Simulate analysis progress
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 2;
-      });
-    }, 50);
-
-    // Simulate analysis time
-    setTimeout(() => {
-      const run = createMockEvaluationRun(config);
-      setEvaluationRun(run);
-      setIsRunning(false);
-      clearInterval(interval);
-      setProgress(100);
-      toast.success('Analysis completed successfully');
-    }, 3000);
 
     toast.info('Starting diagnostic analysis...');
+
+    try {
+      const run = await runFullEvaluation(config, (progressValue, message) => {
+        setProgress(progressValue);
+        if (progressValue < 100) {
+          toast.info(message);
+        }
+      });
+
+      setEvaluationRun(run);
+      setProgress(100);
+      toast.success('Analysis completed successfully');
+    } catch (error) {
+      console.error('Evaluation failed:', error);
+
+      if (error instanceof ApiError) {
+        toast.error(`Analysis failed: ${error.message}`);
+      } else if (error instanceof Error) {
+        toast.error(`Analysis failed: ${error.message}`);
+      } else {
+        toast.error('An unexpected error occurred during analysis');
+      }
+    } finally {
+      setIsRunning(false);
+    }
   };
 
   const handleExport = () => {
