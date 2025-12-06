@@ -42,7 +42,7 @@ export interface EvaluationConfig {
 export interface EvaluationRun {
   id: string;
   config: EvaluationConfig;
-  status: 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
   findings: HeuristicFinding[];
   recommendations: Recommendation[];
