@@ -19,14 +19,16 @@ def create_baseline(
     db: Session = Depends(get_db)
 ):
     """
-    Create or update a statistical baseline.
+    Create a statistical baseline for the current user.
     """
     # If evaluation_id provided, use its score in baseline calculation
     historical_scores = []
 
     if baseline.evaluation_id:
+        # Verify evaluation belongs to user
         evaluation = db.query(Evaluation).filter(
-            Evaluation.id == baseline.evaluation_id
+            Evaluation.id == baseline.evaluation_id,
+            Evaluation.user_id == user.id
         ).first()
         if evaluation and evaluation.overall_score:
             historical_scores.append(evaluation.overall_score)
@@ -46,8 +48,9 @@ def create_baseline(
         if "yellow_zone_max" in baseline.zone_thresholds:
             stats["yellow_zone_max"] = baseline.zone_thresholds["yellow_zone_max"]
 
-    # Create baseline
+    # Create baseline with user ownership
     db_baseline = Baseline(
+        user_id=user.id,
         name=baseline.name,
         green_zone_max=stats["green_zone_max"],
         yellow_zone_max=stats["yellow_zone_max"],
@@ -68,9 +71,12 @@ def get_baseline(
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve baseline configuration and statistics.
+    Retrieve baseline configuration and statistics (only if owned by current user).
     """
-    baseline = db.query(Baseline).filter(Baseline.id == baseline_id).first()
+    baseline = db.query(Baseline).filter(
+        Baseline.id == baseline_id,
+        Baseline.user_id == user.id
+    ).first()
 
     if not baseline:
         raise_not_found("Baseline", baseline_id)
