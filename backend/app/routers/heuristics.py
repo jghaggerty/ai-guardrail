@@ -19,9 +19,12 @@ def get_heuristics(
     db: Session = Depends(get_db)
 ):
     """
-    Get all heuristic findings for an evaluation.
+    Get all heuristic findings for an evaluation (only if owned by current user).
     """
-    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    evaluation = db.query(Evaluation).filter(
+        Evaluation.id == evaluation_id,
+        Evaluation.user_id == user.id
+    ).first()
 
     if not evaluation:
         raise_not_found("Evaluation", evaluation_id)
@@ -41,9 +44,12 @@ def get_heuristic_by_type(
     db: Session = Depends(get_db)
 ):
     """
-    Get detailed analysis for a specific heuristic type.
+    Get detailed analysis for a specific heuristic type (only if owned by current user).
     """
-    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    evaluation = db.query(Evaluation).filter(
+        Evaluation.id == evaluation_id,
+        Evaluation.user_id == user.id
+    ).first()
 
     if not evaluation:
         raise_not_found("Evaluation", evaluation_id)

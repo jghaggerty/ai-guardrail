@@ -20,9 +20,12 @@ def get_recommendations(
     db: Session = Depends(get_db)
 ):
     """
-    Generate prioritized mitigation recommendations.
+    Generate prioritized mitigation recommendations (only for user's evaluations).
     """
-    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    evaluation = db.query(Evaluation).filter(
+        Evaluation.id == evaluation_id,
+        Evaluation.user_id == user.id
+    ).first()
 
     if not evaluation:
         raise_not_found("Evaluation", evaluation_id)
@@ -41,10 +44,14 @@ def get_recommendation(
     db: Session = Depends(get_db)
 ):
     """
-    Get detailed recommendation with examples and resources.
+    Get detailed recommendation with examples and resources (only for user's evaluations).
     """
-    recommendation = db.query(Recommendation).filter(
-        Recommendation.id == recommendation_id
+    # Join with Evaluation to verify ownership
+    recommendation = db.query(Recommendation).join(
+        Evaluation, Recommendation.evaluation_id == Evaluation.id
+    ).filter(
+        Recommendation.id == recommendation_id,
+        Evaluation.user_id == user.id
     ).first()
 
     if not recommendation:

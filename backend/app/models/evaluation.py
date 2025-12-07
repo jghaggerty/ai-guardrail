@@ -23,6 +23,7 @@ class Evaluation(Base):
     __tablename__ = "evaluations"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)  # Supabase user UUID
     ai_system_name = Column(String, nullable=False)
     heuristic_types = Column(JSON, nullable=False)  # List of heuristic types
     iteration_count = Column(Integer, nullable=False)

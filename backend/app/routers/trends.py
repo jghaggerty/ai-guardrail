@@ -18,9 +18,12 @@ def get_trends(
     db: Session = Depends(get_db)
 ):
     """
-    Calculate longitudinal trends and zone status.
+    Calculate longitudinal trends and zone status (only for user's evaluations).
     """
-    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    evaluation = db.query(Evaluation).filter(
+        Evaluation.id == evaluation_id,
+        Evaluation.user_id == user.id
+    ).first()
 
     if not evaluation:
         raise_not_found("Evaluation", evaluation_id)

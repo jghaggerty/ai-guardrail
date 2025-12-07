@@ -40,8 +40,9 @@ def create_evaluation(
             "Iteration count must be between 10 and 1000"
         )
 
-    # Create evaluation
+    # Create evaluation with user ownership
     db_evaluation = Evaluation(
+        user_id=user.id,
         ai_system_name=evaluation.ai_system_name,
         heuristic_types=evaluation.heuristic_types,
         iteration_count=evaluation.iteration_count,
@@ -63,9 +64,11 @@ def list_evaluations(
     db: Session = Depends(get_db)
 ):
     """
-    List all evaluations with pagination.
+    List all evaluations for the current user with pagination.
     """
-    query = db.query(Evaluation).order_by(Evaluation.created_at.desc())
+    query = db.query(Evaluation).filter(
+        Evaluation.user_id == user.id
+    ).order_by(Evaluation.created_at.desc())
     total = query.count()
     items = query.limit(limit).offset(offset).all()
 
@@ -84,9 +87,12 @@ def get_evaluation(
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve evaluation details by ID.
+    Retrieve evaluation details by ID (only if owned by current user).
     """
-    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    evaluation = db.query(Evaluation).filter(
+        Evaluation.id == evaluation_id,
+        Evaluation.user_id == user.id
+    ).first()
 
     if not evaluation:
         raise_not_found("Evaluation", evaluation_id)
@@ -172,7 +178,10 @@ def execute_evaluation(
     Run the heuristic analysis simulation for an evaluation.
     Processing happens asynchronously in the background.
     """
-    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    evaluation = db.query(Evaluation).filter(
+        Evaluation.id == evaluation_id,
+        Evaluation.user_id == user.id
+    ).first()
 
     if not evaluation:
         raise_not_found("Evaluation", evaluation_id)
@@ -208,9 +217,12 @@ def delete_evaluation(
     db: Session = Depends(get_db)
 ):
     """
-    Delete an evaluation and all related data.
+    Delete an evaluation and all related data (only if owned by current user).
     """
-    evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    evaluation = db.query(Evaluation).filter(
+        Evaluation.id == evaluation_id,
+        Evaluation.user_id == user.id
+    ).first()
 
     if not evaluation:
         raise_not_found("Evaluation", evaluation_id)
