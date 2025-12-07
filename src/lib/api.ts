@@ -10,10 +10,7 @@ import {
 } from '@/types/bias';
 import { supabase } from '@/integrations/supabase/client';
 
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-// API Response Types (matching backend schemas)
+// API Response Types (matching edge function response)
 interface ApiEvaluationResponse {
   id: string;
   ai_system_name: string;
@@ -24,15 +21,6 @@ interface ApiEvaluationResponse {
   completed_at: string | null;
   overall_score: number | null;
   zone_status: ZoneStatus | null;
-}
-
-interface ApiExecutionResponse {
-  evaluation_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  overall_score: number | null;
-  zone_status: ZoneStatus | null;
-  findings_count: number;
-  message: string;
 }
 
 interface ApiHeuristicFinding {
@@ -68,11 +56,17 @@ interface ApiTrendDataPoint {
 }
 
 interface ApiTrendResponse {
-  evaluation_id: string;
   data_points: ApiTrendDataPoint[];
   current_zone: ZoneStatus;
   drift_alert: boolean;
   drift_message: string | null;
+}
+
+interface FullEvaluationResponse {
+  evaluation: ApiEvaluationResponse;
+  findings: ApiHeuristicFinding[];
+  recommendations: ApiRecommendation[];
+  trends: ApiTrendResponse;
 }
 
 // Error class for API errors
@@ -86,56 +80,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Get the current Supabase session access token.
- * Returns null if no session exists.
- */
-async function getAuthToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token ?? null;
-}
-
-// Helper function for making API requests
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-
-  // Get the auth token from Supabase session
-  const token = await getAuthToken();
-
-  const defaultHeaders: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  // Add Authorization header if token exists
-  if (token) {
-    (defaultHeaders as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-
-    // Handle 401 Unauthorized - session may have expired
-    if (response.status === 401) {
-      throw new ApiError(401, 'Authentication required. Please sign in again.');
-    }
-
-    throw new ApiError(response.status, errorBody || `HTTP error ${response.status}`);
-  }
-
-  return response.json();
-}
-
 // Map backend heuristic type to frontend type
 function mapBackendHeuristicType(backendType: string): HeuristicType {
   const typeMap: Record<string, HeuristicType> = {
@@ -143,7 +87,7 @@ function mapBackendHeuristicType(backendType: string): HeuristicType {
     loss_aversion: 'loss_aversion',
     sunk_cost: 'sunk_cost',
     confirmation_bias: 'confirmation',
-    // availability_heuristic is not in frontend types, map to closest
+    availability_heuristic: 'anchoring', // Map to closest frontend type
   };
   return typeMap[backendType] || 'anchoring';
 }
@@ -178,7 +122,7 @@ function transformHeuristicFinding(api: ApiHeuristicFinding): HeuristicFinding {
     type,
     name: getHeuristicName(type),
     severity: api.severity,
-    confidence: Math.round(api.confidence_level * 100), // Convert 0-1 to 0-100
+    confidence: Math.round(api.confidence_level * 100),
     description: api.pattern_description,
     examples: api.example_instances,
     impact: `Detected ${api.detection_count} instances with ${api.severity} severity impact on decision-making processes.`,
@@ -226,135 +170,68 @@ function transformTrendData(dataPoints: ApiTrendDataPoint[]): BaselineData[] {
   }));
 }
 
-// API Functions
-
 /**
- * Create a new evaluation
- */
-export async function createEvaluation(config: EvaluationConfig): Promise<string> {
-  const response = await apiRequest<ApiEvaluationResponse>('/api/evaluations', {
-    method: 'POST',
-    body: JSON.stringify({
-      ai_system_name: config.systemName,
-      heuristic_types: config.selectedHeuristics.map(mapFrontendHeuristicType),
-      iteration_count: config.iterations,
-    }),
-  });
-  return response.id;
-}
-
-/**
- * Execute an evaluation (run the analysis)
- */
-export async function executeEvaluation(evaluationId: string): Promise<ApiExecutionResponse> {
-  return apiRequest<ApiExecutionResponse>(`/api/evaluations/${evaluationId}/execute`, {
-    method: 'POST',
-  });
-}
-
-/**
- * Get evaluation details
- */
-export async function getEvaluation(evaluationId: string): Promise<ApiEvaluationResponse> {
-  return apiRequest<ApiEvaluationResponse>(`/api/evaluations/${evaluationId}`);
-}
-
-/**
- * Get heuristic findings for an evaluation
- */
-export async function getHeuristicFindings(evaluationId: string): Promise<HeuristicFinding[]> {
-  const findings = await apiRequest<ApiHeuristicFinding[]>(
-    `/api/evaluations/${evaluationId}/heuristics`
-  );
-  return findings.map(transformHeuristicFinding);
-}
-
-/**
- * Get recommendations for an evaluation
- */
-export async function getRecommendations(
-  evaluationId: string,
-  mode: 'technical' | 'simplified' = 'technical'
-): Promise<Recommendation[]> {
-  const recommendations = await apiRequest<ApiRecommendation[]>(
-    `/api/evaluations/${evaluationId}/recommendations?mode=${mode}`
-  );
-  return recommendations.map(transformRecommendation);
-}
-
-/**
- * Get trend data for an evaluation
- */
-export async function getTrendData(evaluationId: string): Promise<{
-  baselineData: BaselineData[];
-  currentZone: ZoneStatus;
-  driftAlert: boolean;
-  driftMessage: string | null;
-}> {
-  const response = await apiRequest<ApiTrendResponse>(
-    `/api/evaluations/${evaluationId}/trends`
-  );
-  return {
-    baselineData: transformTrendData(response.data_points),
-    currentZone: response.current_zone,
-    driftAlert: response.drift_alert,
-    driftMessage: response.drift_message,
-  };
-}
-
-/**
- * Run a complete evaluation and return all results
- * This orchestrates creating, executing, and fetching all results
+ * Run a complete evaluation using the Edge Function
  */
 export async function runFullEvaluation(
   config: EvaluationConfig,
   onProgress?: (progress: number, message: string) => void
 ): Promise<EvaluationRun> {
-  // Step 1: Create evaluation
   onProgress?.(10, 'Creating evaluation...');
-  const evaluationId = await createEvaluation(config);
 
-  // Step 2: Execute evaluation
-  onProgress?.(30, 'Running diagnostic analysis...');
-  const executionResult = await executeEvaluation(evaluationId);
-
-  if (executionResult.status === 'failed') {
-    throw new Error('Evaluation execution failed');
+  // Get the session for auth
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session) {
+    throw new ApiError(401, 'Authentication required. Please sign in.');
   }
 
-  // Step 3: Fetch all results in parallel
-  onProgress?.(60, 'Fetching results...');
-  const [evaluation, findings, recommendations, trendData] = await Promise.all([
-    getEvaluation(evaluationId),
-    getHeuristicFindings(evaluationId),
-    getRecommendations(evaluationId),
-    getTrendData(evaluationId),
-  ]);
+  onProgress?.(30, 'Running diagnostic analysis...');
+
+  // Call the edge function
+  const { data, error } = await supabase.functions.invoke<FullEvaluationResponse>('evaluate', {
+    body: {
+      ai_system_name: config.systemName,
+      heuristic_types: config.selectedHeuristics.map(mapFrontendHeuristicType),
+      iteration_count: config.iterations,
+    },
+  });
+
+  if (error) {
+    console.error('Edge function error:', error);
+    throw new ApiError(500, error.message || 'Evaluation failed');
+  }
+
+  if (!data) {
+    throw new ApiError(500, 'No data returned from evaluation');
+  }
+
+  onProgress?.(80, 'Processing results...');
+
+  // Transform the response
+  const findings = data.findings.map(transformHeuristicFinding);
+  const recommendations = data.recommendations.map(transformRecommendation);
+  const baselineData = transformTrendData(data.trends.data_points);
 
   onProgress?.(100, 'Analysis complete');
 
-  // Transform to EvaluationRun
   return {
-    id: evaluation.id,
+    id: data.evaluation.id,
     config,
-    status: evaluation.status === 'completed' ? 'completed' : 'failed',
+    status: data.evaluation.status === 'completed' ? 'completed' : 'failed',
     progress: 100,
     findings,
     recommendations,
-    timestamp: new Date(evaluation.created_at),
-    overallScore: evaluation.overall_score || 0,
-    baselineComparison: trendData.baselineData,
+    timestamp: new Date(data.evaluation.created_at),
+    overallScore: data.evaluation.overall_score || 0,
+    baselineComparison: baselineData,
   };
 }
 
 /**
- * Check API health
+ * Check if user is authenticated
  */
-export async function checkHealth(): Promise<boolean> {
-  try {
-    await apiRequest<{ status: string }>('/health');
-    return true;
-  } catch {
-    return false;
-  }
+export async function checkAuth(): Promise<boolean> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return !!session;
 }
