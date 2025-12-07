@@ -8,6 +8,7 @@ import {
   SeverityLevel,
   ZoneStatus,
 } from '@/types/bias';
+import { supabase } from '@/integrations/supabase/client';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -85,6 +86,15 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Get the current Supabase session access token.
+ * Returns null if no session exists.
+ */
+async function getAuthToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+}
+
 // Helper function for making API requests
 async function apiRequest<T>(
   endpoint: string,
@@ -92,9 +102,17 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
+  // Get the auth token from Supabase session
+  const token = await getAuthToken();
+
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   };
+
+  // Add Authorization header if token exists
+  if (token) {
+    (defaultHeaders as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+  }
 
   const response = await fetch(url, {
     ...options,
@@ -106,6 +124,12 @@ async function apiRequest<T>(
 
   if (!response.ok) {
     const errorBody = await response.text();
+
+    // Handle 401 Unauthorized - session may have expired
+    if (response.status === 401) {
+      throw new ApiError(401, 'Authentication required. Please sign in again.');
+    }
+
     throw new ApiError(response.status, errorBody || `HTTP error ${response.status}`);
   }
 

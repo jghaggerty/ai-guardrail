@@ -6,6 +6,7 @@ from ..models.evaluation import Evaluation
 from ..schemas.trend import TrendResponse
 from ..services.statistical_analyzer import StatisticalAnalyzer
 from ..utils.error_handlers import raise_not_found
+from ..auth import get_current_user, AuthenticatedUser
 
 router = APIRouter(prefix="/api/evaluations", tags=["trends"])
 
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/api/evaluations", tags=["trends"])
 @router.get("/{evaluation_id}/trends", response_model=TrendResponse)
 def get_trends(
     evaluation_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

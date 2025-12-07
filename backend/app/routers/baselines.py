@@ -7,6 +7,7 @@ from ..models.evaluation import Evaluation
 from ..schemas.baseline import BaselineCreate, BaselineResponse
 from ..services.statistical_analyzer import StatisticalAnalyzer
 from ..utils.error_handlers import raise_not_found
+from ..auth import get_current_user, AuthenticatedUser
 
 router = APIRouter(prefix="/api/baselines", tags=["baselines"])
 
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/api/baselines", tags=["baselines"])
 @router.post("", response_model=BaselineResponse, status_code=201)
 def create_baseline(
     baseline: BaselineCreate,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -62,6 +64,7 @@ def create_baseline(
 @router.get("/{baseline_id}", response_model=BaselineResponse)
 def get_baseline(
     baseline_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

@@ -18,6 +18,7 @@ from ..services.statistical_analyzer import StatisticalAnalyzer
 from ..services.recommendation_generator import RecommendationGenerator
 from ..utils.error_handlers import raise_not_found, raise_validation_error
 from ..utils.calculations import calculate_zone_status
+from ..auth import get_current_user, AuthenticatedUser
 
 router = APIRouter(prefix="/api/evaluations", tags=["evaluations"])
 
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/api/evaluations", tags=["evaluations"])
 @router.post("", response_model=EvaluationResponse, status_code=201)
 def create_evaluation(
     evaluation: EvaluationCreate,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -57,6 +59,7 @@ def create_evaluation(
 def list_evaluations(
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -77,6 +80,7 @@ def list_evaluations(
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
 def get_evaluation(
     evaluation_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -161,6 +165,7 @@ def _process_evaluation(evaluation_id: str):
 def execute_evaluation(
     evaluation_id: str,
     background_tasks: BackgroundTasks,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -199,6 +204,7 @@ def execute_evaluation(
 @router.delete("/{evaluation_id}", status_code=204)
 def delete_evaluation(
     evaluation_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

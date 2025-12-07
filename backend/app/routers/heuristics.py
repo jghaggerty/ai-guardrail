@@ -7,6 +7,7 @@ from ..models.evaluation import Evaluation
 from ..models.heuristic import HeuristicFinding
 from ..schemas.heuristic import HeuristicFindingResponse
 from ..utils.error_handlers import raise_not_found
+from ..auth import get_current_user, AuthenticatedUser
 
 router = APIRouter(prefix="/api/evaluations", tags=["heuristics"])
 
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/api/evaluations", tags=["heuristics"])
 @router.get("/{evaluation_id}/heuristics", response_model=List[HeuristicFindingResponse])
 def get_heuristics(
     evaluation_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -35,6 +37,7 @@ def get_heuristics(
 def get_heuristic_by_type(
     evaluation_id: str,
     heuristic_type: str,
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
