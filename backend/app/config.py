@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     session_duration: int = 3600
     max_iterations: int = 1000
     min_iterations: int = 10
-    debug: bool = True
+    debug: bool = False  # Set to True only for local development
 
     @property
     def cors_origins_list(self) -> List[str]:
