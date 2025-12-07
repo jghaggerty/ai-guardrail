@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     # Database (PostgreSQL - reads from DATABASE_URL env var)
     database_url: str = ""  # Must be set via DATABASE_URL environment variable
 
+    # Supabase Authentication
+    supabase_jwt_secret: str = ""  # Must be set via SUPABASE_JWT_SECRET environment variable
+
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000
