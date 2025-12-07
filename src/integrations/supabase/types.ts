@@ -21,6 +21,8 @@ export type Database = {
           id: string
           name: string
           statistical_params: Json
+          team_id: string | null
+          user_id: string | null
           yellow_zone_max: number
         }
         Insert: {
@@ -29,6 +31,8 @@ export type Database = {
           id?: string
           name: string
           statistical_params: Json
+          team_id?: string | null
+          user_id?: string | null
           yellow_zone_max: number
         }
         Update: {
@@ -37,9 +41,19 @@ export type Database = {
           id?: string
           name?: string
           statistical_params?: Json
+          team_id?: string | null
+          user_id?: string | null
           yellow_zone_max?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "baselines_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       evaluations: {
         Row: {
@@ -51,6 +65,8 @@ export type Database = {
           iteration_count: number
           overall_score: number | null
           status: Database["public"]["Enums"]["evaluation_status"]
+          team_id: string | null
+          user_id: string | null
           zone_status: Database["public"]["Enums"]["zone_status"] | null
         }
         Insert: {
@@ -62,6 +78,8 @@ export type Database = {
           iteration_count: number
           overall_score?: number | null
           status?: Database["public"]["Enums"]["evaluation_status"]
+          team_id?: string | null
+          user_id?: string | null
           zone_status?: Database["public"]["Enums"]["zone_status"] | null
         }
         Update: {
@@ -73,9 +91,19 @@ export type Database = {
           iteration_count?: number
           overall_score?: number | null
           status?: Database["public"]["Enums"]["evaluation_status"]
+          team_id?: string | null
+          user_id?: string | null
           zone_status?: Database["public"]["Enums"]["zone_status"] | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "evaluations_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       heuristic_findings: {
         Row: {
@@ -120,6 +148,38 @@ export type Database = {
             columns: ["evaluation_id"]
             isOneToOne: false
             referencedRelation: "evaluations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          team_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -171,12 +231,34 @@ export type Database = {
           },
         ]
       }
+      teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_team_id: { Args: { _user_id: string }; Returns: string }
+      is_owner: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       difficulty_level: "easy" | "moderate" | "complex"
