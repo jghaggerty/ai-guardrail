@@ -5,8 +5,8 @@ from typing import List
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
-    # Database (PostgreSQL for proper concurrent read/write support)
-    database_url: str = "postgresql://localhost/bias_tool"
+    # Database (PostgreSQL - reads from DATABASE_URL env var)
+    database_url: str = ""  # Must be set via DATABASE_URL environment variable
 
     # API
     api_host: str = "0.0.0.0"
