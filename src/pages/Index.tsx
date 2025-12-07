@@ -5,21 +5,28 @@ import { HeuristicCard } from '@/components/HeuristicCard';
 import { LongitudinalChart } from '@/components/LongitudinalChart';
 import { RecommendationsList } from '@/components/RecommendationsList';
 import { FindingDetailsDialog } from '@/components/FindingDetailsDialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { runFullEvaluation, ApiError } from '@/lib/api';
-import { Brain, Download, ToggleLeft, TrendingDown, Activity } from 'lucide-react';
+import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = () => {
+  const { signOut, user } = useAuth();
   const [evaluationRun, setEvaluationRun] = useState<EvaluationRun | null>(null);
   const [selectedFinding, setSelectedFinding] = useState<HeuristicFinding | null>(null);
   const [viewMode, setViewMode] = useState<'technical' | 'simplified'>('technical');
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success('Signed out successfully');
+  };
 
   const handleStartEvaluation = async (config: EvaluationConfig) => {
     setIsRunning(true);
@@ -81,18 +88,24 @@ const Index = () => {
                 </p>
               </div>
             </div>
-            {evaluationRun && (
-              <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm" onClick={toggleViewMode}>
-                  <ToggleLeft className="w-4 h-4 mr-2" />
-                  {viewMode === 'technical' ? 'Simplified' : 'Technical'} View
-                </Button>
-                <Button variant="default" size="sm" onClick={handleExport}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Report
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {evaluationRun && (
+                <>
+                  <Button variant="outline" size="sm" onClick={toggleViewMode}>
+                    <ToggleLeft className="w-4 h-4 mr-2" />
+                    {viewMode === 'technical' ? 'Simplified' : 'Technical'} View
+                  </Button>
+                  <Button variant="default" size="sm" onClick={handleExport}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Report
+                  </Button>
+                </>
+              )}
+              <Button variant="ghost" size="sm" onClick={handleSignOut} title={user?.email}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       </header>
