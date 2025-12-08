@@ -141,9 +141,8 @@ export function TeamSetupStep() {
         }
       }
 
-      toast({ title: 'Setup Complete!', description: 'Welcome to the AI Bias Diagnostic Tool!' });
-      setStep('complete');
-      navigate('/', { replace: true });
+      toast({ title: 'Team & Billing Saved', description: 'Now let\'s configure your LLMs.' });
+      setStep('llm-selection');
     } catch (error: any) {
       console.error('Setup error:', error);
       toast({ title: 'Error', description: error.message, variant: 'destructive' });

@@ -8,6 +8,11 @@ import { SignUpStep } from '@/components/onboarding/SignUpStep';
 import { VerifyEmailStep } from '@/components/onboarding/VerifyEmailStep';
 import { OrganizationStep } from '@/components/onboarding/OrganizationStep';
 import { TeamSetupStep } from '@/components/onboarding/TeamSetupStep';
+import { LLMSelectionStep } from '@/components/onboarding/LLMSelectionStep';
+import { APIKeysStep } from '@/components/onboarding/APIKeysStep';
+import { TestSuiteStep } from '@/components/onboarding/TestSuiteStep';
+import { AutomationStep } from '@/components/onboarding/AutomationStep';
+import { SummaryStep } from '@/components/onboarding/SummaryStep';
 import { SignInForm } from '@/components/onboarding/SignInForm';
 import { Activity } from 'lucide-react';
 
@@ -22,6 +27,11 @@ function OnboardingFlow() {
       {step === 'verify-email' && <VerifyEmailStep />}
       {step === 'organization' && <OrganizationStep />}
       {step === 'team-setup' && <TeamSetupStep />}
+      {step === 'llm-selection' && <LLMSelectionStep />}
+      {step === 'api-keys' && <APIKeysStep />}
+      {step === 'test-suite' && <TestSuiteStep />}
+      {step === 'automation' && <AutomationStep />}
+      {step === 'summary' && <SummaryStep />}
     </div>
   );
 }
@@ -48,20 +58,20 @@ function AuthContent() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-2xl">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center gap-2 mb-2">
-            <Activity className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-semibold text-foreground">AI Bias Diagnostic Tool</span>
+            <Activity className="h-7 w-7 text-primary" />
+            <span className="text-xl font-semibold text-foreground">AI Bias Diagnostic Tool</span>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Evaluate generative AI systems for behavioral and decision-making biases
           </p>
         </div>
 
         <Card className="border-border/50 shadow-lg">
-          <CardContent className="p-6 sm:p-8">
+          <CardContent className="p-4 sm:p-6">
             <Tabs defaultValue="signup" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
                 <TabsTrigger value="signup">Create Account</TabsTrigger>
                 <TabsTrigger value="signin">Sign In</TabsTrigger>
               </TabsList>
@@ -88,7 +98,7 @@ function AuthContent() {
         </Card>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-xs text-muted-foreground">
+        <div className="text-center mt-4 text-xs text-muted-foreground">
           <p>
             By using this service, you agree to our{' '}
             <a href="#" className="text-primary hover:underline">Terms of Service</a>
