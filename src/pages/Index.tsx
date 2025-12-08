@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { runFullEvaluation, ApiError } from '@/lib/api';
-import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut } from 'lucide-react';
+import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -69,6 +69,12 @@ const Index = () => {
     toast.info(`Switched to ${viewMode === 'technical' ? 'Simplified' : 'Technical'} View`);
   };
 
+  const handleNewAnalysis = () => {
+    setEvaluationRun(null);
+    setSelectedFinding(null);
+    setProgress(0);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -91,6 +97,10 @@ const Index = () => {
             <div className="flex items-center gap-3">
               {evaluationRun && (
                 <>
+                  <Button variant="outline" size="sm" onClick={handleNewAnalysis}>
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    New Analysis
+                  </Button>
                   <Button variant="outline" size="sm" onClick={toggleViewMode}>
                     <ToggleLeft className="w-4 h-4 mr-2" />
                     {viewMode === 'technical' ? 'Simplified' : 'Technical'} View
