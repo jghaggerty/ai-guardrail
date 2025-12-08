@@ -235,3 +235,129 @@ export async function checkAuth(): Promise<boolean> {
   const { data: { session } } = await supabase.auth.getSession();
   return !!session;
 }
+
+// Historical evaluation summary type
+export interface HistoricalEvaluation {
+  id: string;
+  aiSystemName: string;
+  createdAt: string;
+  completedAt: string | null;
+  overallScore: number | null;
+  zoneStatus: string | null;
+  status: string;
+  heuristicTypes: string[];
+  iterationCount: number;
+}
+
+/**
+ * Fetch historical evaluations for the current user's team
+ */
+export async function fetchHistoricalEvaluations(): Promise<HistoricalEvaluation[]> {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .select('*')
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error('Error fetching evaluations:', error);
+    throw new ApiError(500, 'Failed to fetch historical evaluations');
+  }
+
+  return (data || []).map(e => ({
+    id: e.id,
+    aiSystemName: e.ai_system_name,
+    createdAt: e.created_at,
+    completedAt: e.completed_at,
+    overallScore: e.overall_score,
+    zoneStatus: e.zone_status,
+    status: e.status,
+    heuristicTypes: e.heuristic_types as string[],
+    iterationCount: e.iteration_count,
+  }));
+}
+
+/**
+ * Load full evaluation details by ID
+ */
+export async function loadEvaluationDetails(evaluationId: string): Promise<EvaluationRun> {
+  // Fetch evaluation
+  const { data: evaluation, error: evalError } = await supabase
+    .from('evaluations')
+    .select('*')
+    .eq('id', evaluationId)
+    .single();
+
+  if (evalError || !evaluation) {
+    throw new ApiError(404, 'Evaluation not found');
+  }
+
+  // Fetch findings
+  const { data: findings, error: findingsError } = await supabase
+    .from('heuristic_findings')
+    .select('*')
+    .eq('evaluation_id', evaluationId);
+
+  if (findingsError) {
+    console.error('Error fetching findings:', findingsError);
+  }
+
+  // Fetch recommendations
+  const { data: recommendations, error: recsError } = await supabase
+    .from('recommendations')
+    .select('*')
+    .eq('evaluation_id', evaluationId)
+    .order('priority', { ascending: false });
+
+  if (recsError) {
+    console.error('Error fetching recommendations:', recsError);
+  }
+
+  // Transform findings
+  const transformedFindings = (findings || []).map(f => {
+    const type = mapBackendHeuristicType(f.heuristic_type);
+    return {
+      id: f.id,
+      type,
+      name: getHeuristicName(type),
+      severity: f.severity as SeverityLevel,
+      confidence: Math.round(f.confidence_level * 100),
+      description: f.pattern_description,
+      examples: f.example_instances as string[],
+      impact: `Detected ${f.detection_count} instances with ${f.severity} severity impact on decision-making processes.`,
+      detectedAt: new Date(f.created_at),
+    };
+  });
+
+  // Transform recommendations
+  const transformedRecs = (recommendations || []).map(r => ({
+    id: r.id,
+    priority: mapPriorityToLevel(r.priority),
+    title: r.action_title,
+    description: r.technical_description,
+    action: r.simplified_description,
+    estimatedImpact: `${r.estimated_impact} impact improvement expected`,
+    implementationComplexity: mapDifficulty(r.implementation_difficulty),
+    relatedHeuristic: mapBackendHeuristicType(r.heuristic_type),
+  }));
+
+  // Generate baseline comparison data (mock for historical - could be enhanced)
+  const baselineData: BaselineData[] = [];
+
+  return {
+    id: evaluation.id,
+    config: {
+      selectedHeuristics: (evaluation.heuristic_types as string[]).map(t => mapBackendHeuristicType(t)),
+      iterations: evaluation.iteration_count,
+      systemName: evaluation.ai_system_name,
+    },
+    status: evaluation.status as 'pending' | 'running' | 'completed' | 'failed',
+    progress: 100,
+    findings: transformedFindings,
+    recommendations: transformedRecs,
+    timestamp: new Date(evaluation.created_at),
+    overallScore: evaluation.overall_score || 0,
+    baselineComparison: baselineData,
+  };
+}
