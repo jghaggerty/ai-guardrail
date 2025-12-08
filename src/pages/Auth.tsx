@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OnboardingProvider, useOnboarding } from '@/components/onboarding/OnboardingContext';
@@ -38,21 +40,60 @@ function OnboardingFlow() {
 
 function AuthContent() {
   const { user, loading } = useAuth();
+  const { step, setStep } = useOnboarding();
   const navigate = useNavigate();
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
 
-  // Redirect if already authenticated
-  if (!loading && user) {
-    navigate('/', { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      if (loading) return;
+      
+      if (!user) {
+        setCheckingOnboarding(false);
+        return;
+      }
 
-  if (loading) {
+      // Check if user has completed onboarding
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.onboarding_completed) {
+        setOnboardingComplete(true);
+        navigate('/', { replace: true });
+      } else {
+        // User is authenticated but hasn't completed onboarding
+        // Move to verify-email step if still on signup
+        if (step === 'signup') {
+          setStep('verify-email');
+        }
+        setCheckingOnboarding(false);
+      }
+    };
+
+    checkOnboardingStatus();
+  }, [user, loading, navigate, step, setStep]);
+
+  // Redirect when onboarding completes
+  useEffect(() => {
+    if (step === 'complete') {
+      navigate('/', { replace: true });
+    }
+  }, [step, navigate]);
+
+  if (loading || checkingOnboarding) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
     );
   }
+
+  // If user is authenticated, only show onboarding flow (not sign-in tab)
+  const showOnboardingOnly = user && !onboardingComplete;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -70,30 +111,34 @@ function AuthContent() {
 
         <Card className="border-border/50 shadow-lg">
           <CardContent className="p-4 sm:p-6">
-            <Tabs defaultValue="signup" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="signup">Create Account</TabsTrigger>
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="signup" className="mt-0">
-                <OnboardingProvider>
+            {showOnboardingOnly ? (
+              // Show only onboarding flow for authenticated users
+              <OnboardingFlow />
+            ) : (
+              // Show tabs for non-authenticated users
+              <Tabs defaultValue="signup" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="signup">Create Account</TabsTrigger>
+                  <TabsTrigger value="signin">Sign In</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="signup" className="mt-0">
                   <OnboardingFlow />
-                </OnboardingProvider>
-              </TabsContent>
-              
-              <TabsContent value="signin" className="mt-0">
-                <div className="max-w-sm mx-auto">
-                  <div className="text-center mb-6">
-                    <h2 className="text-xl font-semibold text-foreground">Welcome Back</h2>
-                    <p className="text-muted-foreground text-sm mt-1">
-                      Sign in to continue your bias evaluations
-                    </p>
+                </TabsContent>
+                
+                <TabsContent value="signin" className="mt-0">
+                  <div className="max-w-sm mx-auto">
+                    <div className="text-center mb-6">
+                      <h2 className="text-xl font-semibold text-foreground">Welcome Back</h2>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        Sign in to continue your bias evaluations
+                      </p>
+                    </div>
+                    <SignInForm />
                   </div>
-                  <SignInForm />
-                </div>
-              </TabsContent>
-            </Tabs>
+                </TabsContent>
+              </Tabs>
+            )}
           </CardContent>
         </Card>
 
@@ -112,5 +157,9 @@ function AuthContent() {
 }
 
 export default function Auth() {
-  return <AuthContent />;
+  return (
+    <OnboardingProvider>
+      <AuthContent />
+    </OnboardingProvider>
+  );
 }
