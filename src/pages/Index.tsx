@@ -5,6 +5,7 @@ import { HeuristicCard } from '@/components/HeuristicCard';
 import { LongitudinalChart } from '@/components/LongitudinalChart';
 import { RecommendationsList } from '@/components/RecommendationsList';
 import { FindingDetailsDialog } from '@/components/FindingDetailsDialog';
+import { HistoryPanel } from '@/components/HistoryPanel';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -12,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { runFullEvaluation, ApiError } from '@/lib/api';
-import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw } from 'lucide-react';
+import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -141,66 +142,75 @@ const Index = () => {
         )}
 
         {!evaluationRun && !isRunning ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <Card className="p-8 text-center">
-                <div className="max-w-2xl mx-auto">
-                  <div className="p-4 bg-primary/10 rounded-full w-16 h-16 mx-auto mb-6 flex items-center justify-center">
-                    <Brain className="w-8 h-8 text-primary" />
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2">
+                <Card className="p-8 text-center">
+                  <div className="max-w-2xl mx-auto">
+                    <div className="p-4 bg-primary/10 rounded-full w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+                      <Brain className="w-8 h-8 text-primary" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-card-foreground mb-3">
+                      Welcome to the AI Bias Diagnostic Platform
+                    </h2>
+                    <p className="text-muted-foreground mb-6">
+                      Analyze cognitive heuristics in AI systems to detect bias patterns and receive 
+                      actionable guidance for responsible AI deployment. Configure your evaluation 
+                      parameters on the right to begin.
+                    </p>
+                    <div className="grid grid-cols-3 gap-4 text-left">
+                      <div className="p-4 bg-diagnostic-bg rounded-lg border border-diagnostic-border">
+                        <TrendingDown className="w-5 h-5 text-primary mb-2" />
+                        <h3 className="font-semibold text-sm text-card-foreground mb-1">
+                          Heuristic Analysis
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Identify cognitive shortcuts and decision patterns
+                        </p>
+                      </div>
+                      <div className="p-4 bg-diagnostic-bg rounded-lg border border-diagnostic-border">
+                        <Activity className="w-5 h-5 text-secondary mb-2" />
+                        <h3 className="font-semibold text-sm text-card-foreground mb-1">
+                          Longitudinal Tracking
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Monitor behavioral trends over time
+                        </p>
+                      </div>
+                      <div className="p-4 bg-diagnostic-bg rounded-lg border border-diagnostic-border">
+                        <Download className="w-5 h-5 text-accent mb-2" />
+                        <h3 className="font-semibold text-sm text-card-foreground mb-1">
+                          Actionable Insights
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Get prioritized remediation guidance
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <h2 className="text-2xl font-bold text-card-foreground mb-3">
-                    Welcome to the AI Bias Diagnostic Platform
-                  </h2>
-                  <p className="text-muted-foreground mb-6">
-                    Analyze cognitive heuristics in AI systems to detect bias patterns and receive 
-                    actionable guidance for responsible AI deployment. Configure your evaluation 
-                    parameters on the right to begin.
-                  </p>
-                  <div className="grid grid-cols-3 gap-4 text-left">
-                    <div className="p-4 bg-diagnostic-bg rounded-lg border border-diagnostic-border">
-                      <TrendingDown className="w-5 h-5 text-primary mb-2" />
-                      <h3 className="font-semibold text-sm text-card-foreground mb-1">
-                        Heuristic Analysis
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        Identify cognitive shortcuts and decision patterns
-                      </p>
-                    </div>
-                    <div className="p-4 bg-diagnostic-bg rounded-lg border border-diagnostic-border">
-                      <Activity className="w-5 h-5 text-secondary mb-2" />
-                      <h3 className="font-semibold text-sm text-card-foreground mb-1">
-                        Longitudinal Tracking
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        Monitor behavioral trends over time
-                      </p>
-                    </div>
-                    <div className="p-4 bg-diagnostic-bg rounded-lg border border-diagnostic-border">
-                      <Download className="w-5 h-5 text-accent mb-2" />
-                      <h3 className="font-semibold text-sm text-card-foreground mb-1">
-                        Actionable Insights
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        Get prioritized remediation guidance
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </div>
+              <div>
+                <ConfigurationPanel
+                  onStartEvaluation={handleStartEvaluation}
+                  isRunning={isRunning}
+                />
+              </div>
             </div>
-            <div>
-              <ConfigurationPanel
-                onStartEvaluation={handleStartEvaluation}
-                isRunning={isRunning}
-              />
-            </div>
+            
+            {/* Historical analyses - all systems */}
+            <HistoryPanel onLoadEvaluation={setEvaluationRun} />
           </div>
         ) : evaluationRun && (
           <Tabs defaultValue="heuristics" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 max-w-2xl">
+            <TabsList className="grid w-full grid-cols-4 max-w-3xl">
               <TabsTrigger value="heuristics">Heuristic Analysis</TabsTrigger>
               <TabsTrigger value="longitudinal">Longitudinal Tracking</TabsTrigger>
               <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
+              <TabsTrigger value="history" className="flex items-center gap-1">
+                <History className="w-4 h-4" />
+                History
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="heuristics" className="space-y-6">
@@ -245,6 +255,13 @@ const Index = () => {
               <RecommendationsList
                 recommendations={evaluationRun.recommendations}
                 viewMode={viewMode}
+              />
+            </TabsContent>
+
+            <TabsContent value="history">
+              <HistoryPanel 
+                onLoadEvaluation={setEvaluationRun} 
+                filterSystem={evaluationRun.config.systemName}
               />
             </TabsContent>
           </Tabs>
