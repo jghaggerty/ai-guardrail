@@ -487,10 +487,73 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      llm_configurations_safe: {
+        Row: {
+          base_url: string | null
+          created_at: string | null
+          display_name: string | null
+          environment: string | null
+          id: string | null
+          is_connected: boolean | null
+          last_tested_at: string | null
+          model_name: string | null
+          model_version: string | null
+          provider: string | null
+          team_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          base_url?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          environment?: string | null
+          id?: string | null
+          is_connected?: boolean | null
+          last_tested_at?: string | null
+          model_name?: string | null
+          model_version?: string | null
+          provider?: string | null
+          team_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          base_url?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          environment?: string | null
+          id?: string | null
+          is_connected?: boolean | null
+          last_tested_at?: string | null
+          model_name?: string | null
+          model_version?: string | null
+          provider?: string | null
+          team_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "llm_configurations_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       get_user_team_id: { Args: { _user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin_or_owner: { Args: { _user_id: string }; Returns: boolean }
       is_owner: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
