@@ -7,6 +7,7 @@ import { StepIndicator } from '@/components/onboarding/StepIndicator';
 import { SignUpStep } from '@/components/onboarding/SignUpStep';
 import { VerifyEmailStep } from '@/components/onboarding/VerifyEmailStep';
 import { OrganizationStep } from '@/components/onboarding/OrganizationStep';
+import { TeamSetupStep } from '@/components/onboarding/TeamSetupStep';
 import { SignInForm } from '@/components/onboarding/SignInForm';
 import { Activity } from 'lucide-react';
 
@@ -20,6 +21,7 @@ function OnboardingFlow() {
       {step === 'signup' && <SignUpStep />}
       {step === 'verify-email' && <VerifyEmailStep />}
       {step === 'organization' && <OrganizationStep />}
+      {step === 'team-setup' && <TeamSetupStep />}
     </div>
   );
 }
