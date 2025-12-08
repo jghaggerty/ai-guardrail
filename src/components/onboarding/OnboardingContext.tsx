@@ -4,7 +4,13 @@ export type OnboardingStep =
   | 'signup' 
   | 'verify-email' 
   | 'organization' 
+  | 'team-setup'
   | 'complete';
+
+export interface TeamInvite {
+  email: string;
+  role: 'admin' | 'evaluator' | 'viewer';
+}
 
 export interface OnboardingData {
   // Account
@@ -21,6 +27,12 @@ export interface OnboardingData {
   industry: string[];
   headquartersCountry: string;
   headquartersState: string;
+  
+  // Team & Billing
+  teamInvites: TeamInvite[];
+  billingEmail: string;
+  billingContactName: string;
+  useSameEmailForBilling: boolean;
 }
 
 interface OnboardingContextType {
@@ -43,6 +55,10 @@ const defaultData: OnboardingData = {
   industry: [],
   headquartersCountry: '',
   headquartersState: '',
+  teamInvites: [],
+  billingEmail: '',
+  billingContactName: '',
+  useSameEmailForBilling: true,
 };
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);

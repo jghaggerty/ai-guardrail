@@ -9,6 +9,7 @@ const steps = [
   { key: 'signup', label: 'Account' },
   { key: 'verify-email', label: 'Verify' },
   { key: 'organization', label: 'Organization' },
+  { key: 'team-setup', label: 'Team' },
   { key: 'complete', label: 'Complete' },
 ] as const;
 
@@ -16,7 +17,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
   const currentIndex = steps.findIndex(s => s.key === currentStep);
 
   return (
-    <div className="flex items-center justify-center gap-2 mb-8">
+    <div className="flex items-center justify-center gap-1 sm:gap-2 mb-8">
       {steps.map((step, index) => {
         const isCompleted = index < currentIndex;
         const isCurrent = index === currentIndex;
@@ -26,7 +27,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
             <div className="flex flex-col items-center">
               <div
                 className={`
-                  w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
+                  w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium
                   transition-all duration-200
                   ${isCompleted 
                     ? 'bg-success text-success-foreground' 
@@ -36,10 +37,10 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
                   }
                 `}
               >
-                {isCompleted ? <Check className="h-4 w-4" /> : index + 1}
+                {isCompleted ? <Check className="h-3 w-3 sm:h-4 sm:w-4" /> : index + 1}
               </div>
               <span className={`
-                text-xs mt-1 hidden sm:block
+                text-[10px] sm:text-xs mt-1 hidden sm:block
                 ${isCurrent ? 'text-foreground font-medium' : 'text-muted-foreground'}
               `}>
                 {step.label}
@@ -48,7 +49,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
             {index < steps.length - 1 && (
               <div 
                 className={`
-                  w-8 sm:w-12 h-0.5 mx-1
+                  w-4 sm:w-8 md:w-12 h-0.5 mx-0.5 sm:mx-1
                   ${index < currentIndex ? 'bg-success' : 'bg-muted'}
                 `}
               />

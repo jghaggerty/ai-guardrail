@@ -243,8 +243,51 @@ export type Database = {
           },
         ]
       }
+      team_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          team_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          team_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_invitations_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
+          billing_contact_name: string | null
+          billing_email: string | null
           company_size: string | null
           created_at: string
           dpa_accepted_at: string | null
@@ -257,6 +300,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          billing_contact_name?: string | null
+          billing_email?: string | null
           company_size?: string | null
           created_at?: string
           dpa_accepted_at?: string | null
@@ -269,6 +314,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          billing_contact_name?: string | null
+          billing_email?: string | null
           company_size?: string | null
           created_at?: string
           dpa_accepted_at?: string | null
@@ -282,6 +329,38 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -291,6 +370,7 @@ export type Database = {
       is_owner: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
+      app_role: "owner" | "admin" | "evaluator" | "viewer"
       difficulty_level: "easy" | "moderate" | "complex"
       evaluation_status: "pending" | "running" | "completed" | "failed"
       heuristic_type:
@@ -429,6 +509,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["owner", "admin", "evaluator", "viewer"],
       difficulty_level: ["easy", "moderate", "complex"],
       evaluation_status: ["pending", "running", "completed", "failed"],
       heuristic_type: [
