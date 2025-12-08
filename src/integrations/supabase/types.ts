@@ -55,6 +55,71 @@ export type Database = {
           },
         ]
       }
+      evaluation_settings: {
+        Row: {
+          alert_emails: string[] | null
+          alert_threshold: string | null
+          confidence_interval: number | null
+          created_at: string
+          id: string
+          keep_temperature_constant: boolean | null
+          protected_attributes: string[] | null
+          report_emails: string[] | null
+          sample_size: number | null
+          schedule_day: number | null
+          schedule_frequency: string | null
+          schedule_time: string | null
+          team_id: string
+          temperature: number | null
+          test_suites: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          alert_emails?: string[] | null
+          alert_threshold?: string | null
+          confidence_interval?: number | null
+          created_at?: string
+          id?: string
+          keep_temperature_constant?: boolean | null
+          protected_attributes?: string[] | null
+          report_emails?: string[] | null
+          sample_size?: number | null
+          schedule_day?: number | null
+          schedule_frequency?: string | null
+          schedule_time?: string | null
+          team_id: string
+          temperature?: number | null
+          test_suites?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          alert_emails?: string[] | null
+          alert_threshold?: string | null
+          confidence_interval?: number | null
+          created_at?: string
+          id?: string
+          keep_temperature_constant?: boolean | null
+          protected_attributes?: string[] | null
+          report_emails?: string[] | null
+          sample_size?: number | null
+          schedule_day?: number | null
+          schedule_frequency?: string | null
+          schedule_time?: string | null
+          team_id?: string
+          temperature?: number | null
+          test_suites?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evaluation_settings_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evaluations: {
         Row: {
           ai_system_name: string
@@ -148,6 +213,65 @@ export type Database = {
             columns: ["evaluation_id"]
             isOneToOne: false
             referencedRelation: "evaluations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      llm_configurations: {
+        Row: {
+          api_key_encrypted: string | null
+          base_url: string | null
+          created_at: string
+          display_name: string
+          environment: string | null
+          id: string
+          is_connected: boolean | null
+          last_tested_at: string | null
+          model_name: string
+          model_version: string | null
+          provider: string
+          team_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          api_key_encrypted?: string | null
+          base_url?: string | null
+          created_at?: string
+          display_name: string
+          environment?: string | null
+          id?: string
+          is_connected?: boolean | null
+          last_tested_at?: string | null
+          model_name: string
+          model_version?: string | null
+          provider: string
+          team_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          api_key_encrypted?: string | null
+          base_url?: string | null
+          created_at?: string
+          display_name?: string
+          environment?: string | null
+          id?: string
+          is_connected?: boolean | null
+          last_tested_at?: string | null
+          model_name?: string
+          model_version?: string | null
+          provider?: string
+          team_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "llm_configurations_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
