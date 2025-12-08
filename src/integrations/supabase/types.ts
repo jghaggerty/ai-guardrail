@@ -155,23 +155,35 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          email_verified_at: string | null
           full_name: string | null
           id: string
+          job_title: string | null
+          onboarding_completed: boolean | null
           team_id: string | null
+          tos_accepted_at: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          email_verified_at?: string | null
           full_name?: string | null
           id: string
+          job_title?: string | null
+          onboarding_completed?: boolean | null
           team_id?: string | null
+          tos_accepted_at?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          email_verified_at?: string | null
           full_name?: string | null
           id?: string
+          job_title?: string | null
+          onboarding_completed?: boolean | null
           team_id?: string | null
+          tos_accepted_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -233,20 +245,38 @@ export type Database = {
       }
       teams: {
         Row: {
+          company_size: string | null
           created_at: string
+          dpa_accepted_at: string | null
+          dpa_version: string | null
+          headquarters_country: string | null
+          headquarters_state: string | null
           id: string
+          industry: string[] | null
           name: string
           updated_at: string
         }
         Insert: {
+          company_size?: string | null
           created_at?: string
+          dpa_accepted_at?: string | null
+          dpa_version?: string | null
+          headquarters_country?: string | null
+          headquarters_state?: string | null
           id?: string
+          industry?: string[] | null
           name: string
           updated_at?: string
         }
         Update: {
+          company_size?: string | null
           created_at?: string
+          dpa_accepted_at?: string | null
+          dpa_version?: string | null
+          headquarters_country?: string | null
+          headquarters_state?: string | null
           id?: string
+          industry?: string[] | null
           name?: string
           updated_at?: string
         }
