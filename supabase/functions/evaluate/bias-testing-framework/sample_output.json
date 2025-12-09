@@ -1,0 +1,376 @@
+{
+  "metadata": {
+    "frameworkVersion": "1.0.0",
+    "generatedAt": "2025-12-09T15:00:00.000Z",
+    "configuration": {
+      "biasTypes": ["anchoring", "loss_aversion", "confirmation_bias", "sunk_cost_fallacy", "availability_heuristic"],
+      "testIterations": 5,
+      "totalTestCases": 60,
+      "difficulty": ["easy", "medium", "hard"]
+    }
+  },
+  "testSuite": [
+    {
+      "testCase": {
+        "id": "anchoring_001",
+        "biasType": "anchoring",
+        "name": "Salary Negotiation Anchor - Low",
+        "description": "Tests whether the model anchors on a low salary figure when estimating reasonable compensation for a role.",
+        "prompt": "A software engineering position at a mid-sized tech company is currently listed with a salary of $65,000. The role requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+        "expectedBiasIndicators": [
+          "Suggested range stays close to $65,000",
+          "Uses $65,000 as baseline for calculations",
+          "Fails to research market rates independently",
+          "Justifies low range based on listed salary"
+        ],
+        "scoringRubric": {
+          "dimensions": [
+            {
+              "name": "anchor_deviation",
+              "description": "How strongly the response deviates toward or away from the anchor",
+              "maxScale": 5,
+              "indicators": [
+                "Response value is within 10% of anchor despite reasonable range being much wider",
+                "Explicit reference to anchor value as baseline",
+                "Justification using anchor as starting point",
+                "Failure to consider alternative reference points"
+              ]
+            },
+            {
+              "name": "anchor_acknowledgment",
+              "description": "Whether the model acknowledges and questions the anchor value",
+              "maxScale": 5,
+              "indicators": [
+                "Explicitly questions the validity of the anchor",
+                "Seeks alternative reference points",
+                "Discusses potential bias from anchor",
+                "Provides reasoning independent of anchor"
+              ]
+            },
+            {
+              "name": "justification_quality",
+              "description": "Quality of reasoning and justification provided",
+              "maxScale": 5,
+              "indicators": [
+                "Multiple independent data points referenced",
+                "Market research or comparable analysis",
+                "Recognition of uncertainty",
+                "Alternative scenarios considered"
+              ]
+            }
+          ],
+          "weights": {
+            "anchor_deviation": 0.5,
+            "anchor_acknowledgment": 0.3,
+            "justification_quality": 0.2
+          },
+          "interpretationGuide": "Scores 0-1 indicate strong resistance to anchoring bias. Scores 2-3 indicate moderate susceptibility. Scores 4-5 indicate high vulnerability to anchoring effects."
+        },
+        "difficulty": "easy",
+        "category": "salary_estimation",
+        "tags": ["numerical", "career", "compensation", "low_anchor"],
+        "controlPrompt": "A software engineering position at a mid-sized tech company requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+        "baselineExpectation": "Without anchor, should estimate $120,000-$180,000 based on market rates for senior engineers."
+      },
+      "prompts": [
+        {
+          "testCaseId": "anchoring_001",
+          "iteration": 1,
+          "prompt": "A software engineering position at a mid-sized tech company is currently listed with a salary of $65,000. The role requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "controlPrompt": "A software engineering position at a mid-sized tech company requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "metadata": {
+            "biasType": "anchoring",
+            "category": "salary_estimation",
+            "difficulty": "easy",
+            "tags": ["numerical", "career", "compensation", "low_anchor"]
+          }
+        },
+        {
+          "testCaseId": "anchoring_001",
+          "iteration": 2,
+          "prompt": "A software engineering position at a mid-sized tech company is currently listed with a salary of $65,000. The role requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "controlPrompt": "A software engineering position at a mid-sized tech company requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "metadata": {
+            "biasType": "anchoring",
+            "category": "salary_estimation",
+            "difficulty": "easy",
+            "tags": ["numerical", "career", "compensation", "low_anchor"]
+          }
+        },
+        {
+          "testCaseId": "anchoring_001",
+          "iteration": 3,
+          "prompt": "A software engineering position at a mid-sized tech company is currently listed with a salary of $65,000. The role requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "controlPrompt": "A software engineering position at a mid-sized tech company requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "metadata": {
+            "biasType": "anchoring",
+            "category": "salary_estimation",
+            "difficulty": "easy",
+            "tags": ["numerical", "career", "compensation", "low_anchor"]
+          }
+        },
+        {
+          "testCaseId": "anchoring_001",
+          "iteration": 4,
+          "prompt": "A software engineering position at a mid-sized tech company is currently listed with a salary of $65,000. The role requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "controlPrompt": "A software engineering position at a mid-sized tech company requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "metadata": {
+            "biasType": "anchoring",
+            "category": "salary_estimation",
+            "difficulty": "easy",
+            "tags": ["numerical", "career", "compensation", "low_anchor"]
+          }
+        },
+        {
+          "testCaseId": "anchoring_001",
+          "iteration": 5,
+          "prompt": "A software engineering position at a mid-sized tech company is currently listed with a salary of $65,000. The role requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "controlPrompt": "A software engineering position at a mid-sized tech company requires 5 years of experience, proficiency in Python and cloud technologies, and team leadership skills.\n\nWhat would you consider a reasonable salary range for this position? Please explain your reasoning.",
+          "metadata": {
+            "biasType": "anchoring",
+            "category": "salary_estimation",
+            "difficulty": "easy",
+            "tags": ["numerical", "career", "compensation", "low_anchor"]
+          }
+        }
+      ]
+    },
+    {
+      "testCase": {
+        "id": "loss_aversion_001",
+        "biasType": "loss_aversion",
+        "name": "Investment Decision - Gain Frame",
+        "description": "Tests response to an investment opportunity framed in terms of potential gains.",
+        "prompt": "You have $10,000 to invest. You're considering two options:\n\nOption A: Guaranteed return of $500 (5% gain)\nOption B: 50% chance of gaining $1,500, 50% chance of gaining nothing\n\nBoth options have the same expected value of $500. Which would you recommend and why?",
+        "expectedBiasIndicators": [
+          "May recommend riskier Option B for higher upside",
+          "Focuses on potential $1,500 gain",
+          "Relatively comfortable with risk in gain frame",
+          "Neutral or positive tone about uncertainty"
+        ],
+        "scoringRubric": {
+          "dimensions": [
+            {
+              "name": "risk_asymmetry",
+              "description": "Difference in risk tolerance between gain and loss frames",
+              "maxScale": 5
+            },
+            {
+              "name": "frame_sensitivity",
+              "description": "How much the response changes based on gain vs loss framing",
+              "maxScale": 5
+            },
+            {
+              "name": "loss_emphasis",
+              "description": "Relative emphasis on losses vs gains in reasoning",
+              "maxScale": 5
+            }
+          ],
+          "weights": {
+            "risk_asymmetry": 0.4,
+            "frame_sensitivity": 0.35,
+            "loss_emphasis": 0.25
+          },
+          "interpretationGuide": "Scores 0-1 indicate rational expected-value reasoning. Scores 2-3 indicate moderate loss aversion. Scores 4-5 indicate strong loss aversion bias."
+        },
+        "difficulty": "easy",
+        "category": "investment_framing",
+        "tags": ["financial", "gain_frame", "expected_value", "risk"]
+      },
+      "prompts": [
+        {
+          "testCaseId": "loss_aversion_001",
+          "iteration": 1,
+          "prompt": "You have $10,000 to invest. You're considering two options:\n\nOption A: Guaranteed return of $500 (5% gain)\nOption B: 50% chance of gaining $1,500, 50% chance of gaining nothing\n\nBoth options have the same expected value of $500. Which would you recommend and why?",
+          "metadata": {
+            "biasType": "loss_aversion",
+            "category": "investment_framing",
+            "difficulty": "easy",
+            "tags": ["financial", "gain_frame", "expected_value", "risk"]
+          }
+        }
+      ]
+    }
+  ],
+  "readyForExecution": true,
+  "_sampleResultsFormat": {
+    "testResult": {
+      "testCaseId": "anchoring_001",
+      "iterationNumber": 1,
+      "rawResponse": "[LLM response would appear here]",
+      "biasScores": {
+        "anchor_deviation": 2.5,
+        "anchor_acknowledgment": 3.0,
+        "justification_quality": 2.0
+      },
+      "overallBiasScore": 2.55,
+      "confidence": 0.85,
+      "timestamp": "2025-12-09T15:00:00.000Z",
+      "scoringReasoning": "Response showed moderate anchoring influence, with some acknowledgment of the anchor but limited independent analysis."
+    },
+    "aggregatedResults": {
+      "testCaseId": "anchoring_001",
+      "biasType": "anchoring",
+      "iterations": 5,
+      "meanBiasScore": 2.45,
+      "stdDeviation": 0.32,
+      "minScore": 2.1,
+      "maxScore": 2.9,
+      "confidenceInterval95": [2.13, 2.77],
+      "consistency": "high",
+      "interpretation": "Moderate anchoring bias detected. The model occasionally shows susceptibility but generally handles this well.",
+      "dimensionScores": {
+        "anchor_deviation": {
+          "mean": 2.4,
+          "stdDev": 0.3,
+          "min": 2.0,
+          "max": 2.8
+        },
+        "anchor_acknowledgment": {
+          "mean": 2.8,
+          "stdDev": 0.4,
+          "min": 2.3,
+          "max": 3.2
+        },
+        "justification_quality": {
+          "mean": 2.1,
+          "stdDev": 0.25,
+          "min": 1.8,
+          "max": 2.4
+        }
+      }
+    },
+    "testReport": {
+      "metadata": {
+        "reportId": "report-12345",
+        "generatedAt": "2025-12-09T15:30:00.000Z",
+        "totalTests": 60,
+        "totalIterations": 300,
+        "configuration": {
+          "biasTypes": ["anchoring", "loss_aversion", "confirmation_bias", "sunk_cost_fallacy", "availability_heuristic"],
+          "testIterations": 5,
+          "difficulty": ["easy", "medium", "hard"]
+        }
+      },
+      "summaryByBiasType": {
+        "anchoring": {
+          "testCount": 12,
+          "meanScore": 2.35,
+          "stdDev": 0.45,
+          "highestBias": "anchoring_006",
+          "lowestBias": "anchoring_001"
+        },
+        "loss_aversion": {
+          "testCount": 12,
+          "meanScore": 2.15,
+          "stdDev": 0.38,
+          "highestBias": "loss_aversion_008",
+          "lowestBias": "loss_aversion_003"
+        },
+        "confirmation_bias": {
+          "testCount": 12,
+          "meanScore": 2.85,
+          "stdDev": 0.52,
+          "highestBias": "confirmation_bias_004",
+          "lowestBias": "confirmation_bias_010"
+        },
+        "sunk_cost_fallacy": {
+          "testCount": 12,
+          "meanScore": 2.65,
+          "stdDev": 0.41,
+          "highestBias": "sunk_cost_001",
+          "lowestBias": "sunk_cost_012"
+        },
+        "availability_heuristic": {
+          "testCount": 12,
+          "meanScore": 2.45,
+          "stdDev": 0.39,
+          "highestBias": "availability_002",
+          "lowestBias": "availability_011"
+        }
+      },
+      "overallFindings": {
+        "mostProblematicBias": "confirmation_bias",
+        "leastProblematicBias": "loss_aversion",
+        "overallBiasScore": 2.49,
+        "confidence": 0.87,
+        "recommendations": [
+          "Priority: Address confirmation bias (score: 2.85). Implement adversarial evidence search and belief revision tracking.",
+          "Consider: Monitor sunk cost fallacy (score: 2.65). Add forward-looking decision framework to prompts.",
+          "Consider: Monitor availability heuristic (score: 2.45). Incorporate base rate priming in relevant scenarios."
+        ]
+      }
+    }
+  },
+  "_testCaseSummary": {
+    "totalTestCases": 60,
+    "byBiasType": {
+      "anchoring": 12,
+      "loss_aversion": 12,
+      "confirmation_bias": 12,
+      "sunk_cost_fallacy": 12,
+      "availability_heuristic": 12
+    },
+    "byDifficulty": {
+      "easy": 18,
+      "medium": 28,
+      "hard": 14
+    },
+    "categories": [
+      "salary_estimation",
+      "time_estimation",
+      "price_estimation",
+      "performance_estimation",
+      "business_valuation",
+      "forecast_estimation",
+      "cost_estimation",
+      "market_estimation",
+      "probability_estimation",
+      "numerical_estimation",
+      "negotiation",
+      "investment_framing",
+      "medical_framing",
+      "business_decision",
+      "career_decision",
+      "product_decision",
+      "insurance_decision",
+      "vendor_decision",
+      "product_evaluation",
+      "hiring_evaluation",
+      "market_analysis",
+      "research_evaluation",
+      "corporate_evaluation",
+      "technology_decision",
+      "policy_evaluation",
+      "data_interpretation",
+      "pattern_analysis",
+      "information_selection",
+      "belief_revision",
+      "competitive_analysis",
+      "project_investment",
+      "technology_migration",
+      "human_resources",
+      "marketing",
+      "education_career",
+      "market_expansion",
+      "partnership",
+      "product_development",
+      "acquisition",
+      "research_development",
+      "legal",
+      "inventory_management",
+      "risk_perception",
+      "probability_estimation",
+      "crime_perception",
+      "health_estimation",
+      "risk_prioritization",
+      "investment_perception",
+      "workplace_risk",
+      "technology_assessment",
+      "disaster_preparation",
+      "hiring_decision",
+      "mortality_estimation",
+      "product_perception"
+    ]
+  }
+}
