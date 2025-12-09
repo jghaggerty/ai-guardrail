@@ -77,8 +77,9 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
           .single();
 
         if (profile?.team_id) {
+          // Use safe view to avoid exposing encrypted API keys
           const { data: configs } = await supabase
-            .from('llm_configurations')
+            .from('llm_configurations_safe')
             .select('id, display_name, provider, model_name, is_connected')
             .eq('team_id', profile.team_id);
 
