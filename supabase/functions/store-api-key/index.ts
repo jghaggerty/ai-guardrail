@@ -6,19 +6,55 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Simple XOR-based encryption with base64 encoding
-// In production, consider using Web Crypto API for AES encryption
-function encryptApiKey(apiKey: string, secret: string): string {
-  const keyBytes = new TextEncoder().encode(apiKey);
-  const secretBytes = new TextEncoder().encode(secret);
+// AES-256-GCM encryption with PBKDF2 key derivation
+async function encryptApiKey(apiKey: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
   
-  const encrypted = new Uint8Array(keyBytes.length);
-  for (let i = 0; i < keyBytes.length; i++) {
-    encrypted[i] = keyBytes[i] ^ secretBytes[i % secretBytes.length];
-  }
+  // Generate a random salt for PBKDF2
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  
+  // Import the secret as key material for PBKDF2
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
+  
+  // Derive an AES-256 key using PBKDF2
+  const key = await crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt']
+  );
+  
+  // Generate a random IV for AES-GCM
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  
+  // Encrypt the API key
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encoder.encode(apiKey)
+  );
+  
+  // Combine salt + iv + encrypted data for storage
+  // Format: [16 bytes salt][12 bytes iv][encrypted data]
+  const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+  combined.set(salt, 0);
+  combined.set(iv, salt.length);
+  combined.set(new Uint8Array(encrypted), salt.length + iv.length);
   
   // Convert to base64 for safe storage
-  return btoa(String.fromCharCode(...encrypted));
+  return btoa(String.fromCharCode(...combined));
 }
 
 serve(async (req) => {
@@ -85,9 +121,9 @@ serve(async (req) => {
       );
     }
 
-    // Encrypt the API key
-    const encryptedKey = encryptApiKey(apiKey, encryptionSecret);
-    console.log(`Encrypting API key for config ${configId}`);
+    // Encrypt the API key using AES-256-GCM
+    const encryptedKey = await encryptApiKey(apiKey, encryptionSecret);
+    console.log(`Encrypting API key for config ${configId} using AES-256-GCM`);
 
     // Use service role to update the encrypted key (bypasses RLS for this specific update)
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -110,7 +146,7 @@ serve(async (req) => {
     console.log(`Successfully stored encrypted API key for config ${configId}`);
 
     return new Response(
-      JSON.stringify({ success: true, message: 'API key stored securely' }),
+      JSON.stringify({ success: true, message: 'API key stored securely with AES-256-GCM encryption' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
