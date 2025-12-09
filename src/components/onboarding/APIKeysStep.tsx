@@ -201,14 +201,14 @@ export function APIKeysStep() {
                 <div className="space-y-2">
                   <Label>Model Version</Label>
                   <Select 
-                    value={config.modelVersion || ''} 
-                    onValueChange={(value) => updateConfig(config.id, { modelVersion: value })}
+                    value={config.modelVersion || 'latest'} 
+                    onValueChange={(value) => updateConfig(config.id, { modelVersion: value === 'latest' ? undefined : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Latest (default)" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover">
-                      <SelectItem value="">Latest (default)</SelectItem>
+                      <SelectItem value="latest">Latest (default)</SelectItem>
                       {MODEL_VERSIONS[config.modelName].map(v => (
                         <SelectItem key={v} value={v}>{v}</SelectItem>
                       ))}
