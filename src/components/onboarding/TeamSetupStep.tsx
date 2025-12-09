@@ -104,14 +104,13 @@ export function TeamSetupStep() {
 
       if (teamError) throw teamError;
 
-      // Update profile
+      // Update profile (don't mark onboarding as complete yet - that happens in SummaryStep)
       const { error: profileUpdateError } = await supabase
         .from('profiles')
         .update({
           full_name: data.fullName,
           job_title: data.jobTitle,
           tos_accepted_at: new Date().toISOString(),
-          onboarding_completed: true,
         })
         .eq('id', user!.id);
 
