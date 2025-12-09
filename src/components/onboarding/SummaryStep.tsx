@@ -76,7 +76,8 @@ export function SummaryStep() {
 
       // Save LLM configurations
       for (const config of selectedLLMs) {
-        await supabase
+        // First upsert the config without the API key
+        const { data: savedConfig, error: configError } = await supabase
           .from('llm_configurations')
           .upsert({
             team_id: teamId,
@@ -88,7 +89,38 @@ export function SummaryStep() {
             base_url: config.baseUrl || null,
             environment: config.environment,
             is_connected: config.isConnected,
-          }, { onConflict: 'team_id,provider,model_name' });
+          }, { onConflict: 'team_id,provider,model_name' })
+          .select('id')
+          .single();
+
+        if (configError) {
+          console.error('Error saving LLM config:', configError);
+          continue;
+        }
+
+        // If there's an API key, securely store it via Edge Function
+        if (config.apiKey && savedConfig?.id) {
+          try {
+            const { error: storeError } = await supabase.functions.invoke('store-api-key', {
+              body: {
+                configId: savedConfig.id,
+                apiKey: config.apiKey,
+                teamId: teamId,
+              }
+            });
+            
+            if (storeError) {
+              console.error('Error storing API key securely:', storeError);
+              toast({ 
+                title: 'Warning', 
+                description: `Could not securely store API key for ${config.displayName}. You can add it later in Settings.`,
+                variant: 'destructive'
+              });
+            }
+          } catch (err) {
+            console.error('Error invoking store-api-key function:', err);
+          }
+        }
       }
 
       // Save evaluation settings
