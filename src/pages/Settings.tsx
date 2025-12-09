@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -60,13 +60,16 @@ const Settings = () => {
   // LLM Form State
   const [isLLMDialogOpen, setIsLLMDialogOpen] = useState(false);
   const [editingLLM, setEditingLLM] = useState<LLMConfig | null>(null);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [llmForm, setLlmForm] = useState({
     display_name: '',
     provider: 'OpenAI',
     model_name: 'gpt-4',
     model_version: '',
     base_url: '',
-    environment: 'development'
+    environment: 'development',
+    api_key: ''
   });
 
   useEffect(() => {
@@ -122,9 +125,11 @@ const Settings = () => {
       model_name: 'gpt-4',
       model_version: '',
       base_url: '',
-      environment: 'development'
+      environment: 'development',
+      api_key: ''
     });
     setEditingLLM(null);
+    setShowApiKey(false);
   };
 
   const handleEditLLM = (config: LLMConfig) => {
@@ -135,9 +140,34 @@ const Settings = () => {
       model_name: config.model_name,
       model_version: config.model_version || '',
       base_url: config.base_url || '',
-      environment: config.environment || 'development'
+      environment: config.environment || 'development',
+      api_key: '' // Never pre-fill API key for security
     });
+    setShowApiKey(false);
     setIsLLMDialogOpen(true);
+  };
+
+  const storeApiKey = async (configId: string, apiKey: string): Promise<boolean> => {
+    if (!apiKey || !teamId) return true; // Skip if no API key provided
+    
+    setSavingApiKey(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const response = await supabase.functions.invoke('store-api-key', {
+        body: { configId, apiKey, teamId }
+      });
+
+      if (response.error) throw response.error;
+      return true;
+    } catch (error) {
+      console.error('Error storing API key:', error);
+      toast.error('Failed to store API key securely');
+      return false;
+    } finally {
+      setSavingApiKey(false);
+    }
   };
 
   const handleSaveLLM = async () => {
@@ -155,15 +185,28 @@ const Settings = () => {
             model_version: llmForm.model_version || null,
             base_url: llmForm.base_url || null,
             environment: llmForm.environment,
+            is_connected: !!llmForm.api_key || editingLLM.is_connected,
             updated_at: new Date().toISOString()
           })
           .eq('id', editingLLM.id);
 
         if (error) throw error;
+
+        // Store API key if provided
+        if (llmForm.api_key) {
+          const success = await storeApiKey(editingLLM.id, llmForm.api_key);
+          if (!success) return;
+        }
         
         setLlmConfigs(prev => prev.map(c => 
           c.id === editingLLM.id 
-            ? { ...c, ...llmForm, model_version: llmForm.model_version || null, base_url: llmForm.base_url || null }
+            ? { 
+                ...c, 
+                ...llmForm, 
+                model_version: llmForm.model_version || null, 
+                base_url: llmForm.base_url || null,
+                is_connected: !!llmForm.api_key || c.is_connected
+              }
             : c
         ));
         toast.success('LLM configuration updated');
@@ -180,14 +223,25 @@ const Settings = () => {
             model_version: llmForm.model_version || null,
             base_url: llmForm.base_url || null,
             environment: llmForm.environment,
-            is_connected: false
+            is_connected: !!llmForm.api_key
           })
           .select()
           .single();
 
         if (error) throw error;
+        
         if (data) {
-          setLlmConfigs(prev => [...prev, data]);
+          // Store API key if provided
+          if (llmForm.api_key) {
+            const success = await storeApiKey(data.id, llmForm.api_key);
+            if (!success) {
+              // Rollback: delete the config if API key storage failed
+              await supabase.from('llm_configurations').delete().eq('id', data.id);
+              return;
+            }
+          }
+          
+          setLlmConfigs(prev => [...prev, { ...data, is_connected: !!llmForm.api_key }]);
           toast.success('LLM configuration added');
         }
       }
@@ -387,8 +441,46 @@ const Settings = () => {
                         onChange={(e) => setLlmForm(prev => ({ ...prev, base_url: e.target.value }))}
                       />
                     </div>
-                    <Button onClick={handleSaveLLM} className="w-full" disabled={!llmForm.display_name || !llmForm.model_name}>
-                      {editingLLM ? 'Update' : 'Add'} Model
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Key className="w-4 h-4" />
+                        API Key {editingLLM?.is_connected && '(leave blank to keep existing)'}
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type={showApiKey ? 'text' : 'password'}
+                          placeholder={editingLLM?.is_connected ? '••••••••••••••••' : 'Enter your API key'}
+                          value={llmForm.api_key}
+                          onChange={(e) => setLlmForm(prev => ({ ...prev, api_key: e.target.value }))}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                        >
+                          {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Your API key is encrypted with AES-256-GCM before storage
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={handleSaveLLM} 
+                      className="w-full" 
+                      disabled={!llmForm.display_name || !llmForm.model_name || savingApiKey}
+                    >
+                      {savingApiKey ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Securing API Key...
+                        </>
+                      ) : (
+                        <>{editingLLM ? 'Update' : 'Add'} Model</>
+                      )}
                     </Button>
                   </div>
                 </DialogContent>
