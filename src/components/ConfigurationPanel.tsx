@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,8 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { HeuristicType } from '@/types/bias';
-import { Play, Info } from 'lucide-react';
+import { Play, Info, Settings, Plus } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { Link } from 'react-router-dom';
 
 interface ConfigurationPanelProps {
   onStartEvaluation: (config: {
@@ -18,20 +21,13 @@ interface ConfigurationPanelProps {
   isRunning: boolean;
 }
 
-const aiSystems = [
-  'GPT-4',
-  'GPT-4 Turbo',
-  'GPT-3.5 Turbo',
-  'Claude 3 Opus',
-  'Claude 3 Sonnet',
-  'Claude 3 Haiku',
-  'Gemini Pro',
-  'Gemini Ultra',
-  'PaLM 2',
-  'Llama 3',
-  'Mistral Large',
-  'Custom Model'
-];
+interface LLMConfig {
+  id: string;
+  display_name: string;
+  provider: string;
+  model_name: string;
+  is_connected: boolean;
+}
 
 const heuristics: { value: HeuristicType; label: string; description: string }[] = [
   {
@@ -57,14 +53,51 @@ const heuristics: { value: HeuristicType; label: string; description: string }[]
 ];
 
 export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: ConfigurationPanelProps) => {
-  const [systemName, setSystemName] = useState('GPT-4');
-  const [customSystemName, setCustomSystemName] = useState('');
+  const { user } = useAuth();
+  const [llmConfigs, setLlmConfigs] = useState<LLMConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [systemName, setSystemName] = useState('');
   const [iterations, setIterations] = useState(100);
   const [selectedHeuristics, setSelectedHeuristics] = useState<HeuristicType[]>([
     'anchoring',
     'loss_aversion',
     'confirmation'
   ]);
+
+  useEffect(() => {
+    const fetchLLMConfigs = async () => {
+      if (!user) return;
+
+      try {
+        // Get user's team_id from profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('team_id')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.team_id) {
+          const { data: configs } = await supabase
+            .from('llm_configurations')
+            .select('id, display_name, provider, model_name, is_connected')
+            .eq('team_id', profile.team_id);
+
+          if (configs && configs.length > 0) {
+            setLlmConfigs(configs);
+            // Set the first connected config as default
+            const firstConnected = configs.find(c => c.is_connected) || configs[0];
+            setSystemName(firstConnected.display_name);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching LLM configs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLLMConfigs();
+  }, [user]);
 
   const handleHeuristicToggle = (heuristic: HeuristicType) => {
     setSelectedHeuristics(prev =>
@@ -75,20 +108,26 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
   };
 
   const handleStart = () => {
-    if (selectedHeuristics.length > 0) {
-      const finalSystemName = systemName === 'Custom Model' && customSystemName 
-        ? customSystemName 
-        : systemName;
-      onStartEvaluation({ selectedHeuristics, iterations, systemName: finalSystemName });
+    if (selectedHeuristics.length > 0 && systemName) {
+      onStartEvaluation({ selectedHeuristics, iterations, systemName });
     }
   };
+
+  const hasNoConfigs = !loading && llmConfigs.length === 0;
 
   return (
     <Card className="p-6">
       <div className="mb-6">
-        <h3 className="text-lg font-semibold text-card-foreground mb-2">
-          Evaluation Configuration
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-card-foreground mb-2">
+            Evaluation Configuration
+          </h3>
+          <Link to="/settings">
+            <Button variant="ghost" size="sm">
+              <Settings className="w-4 h-4" />
+            </Button>
+          </Link>
+        </div>
         <p className="text-sm text-muted-foreground">
           Configure heuristic tests and baseline parameters
         </p>
@@ -99,27 +138,38 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
           <Label htmlFor="systemName" className="text-sm font-medium text-card-foreground">
             AI System Identifier
           </Label>
-          <Select value={systemName} onValueChange={setSystemName} disabled={isRunning}>
-            <SelectTrigger className="mt-1.5">
-              <SelectValue placeholder="Select AI system..." />
-            </SelectTrigger>
-            <SelectContent>
-              {aiSystems.map((system) => (
-                <SelectItem key={system} value={system}>
-                  {system}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          {systemName === 'Custom Model' && (
-            <Input
-              placeholder="Enter custom AI system name..."
-              value={customSystemName}
-              onChange={(e) => setCustomSystemName(e.target.value)}
-              className="mt-2"
-              disabled={isRunning}
-            />
+          {loading ? (
+            <div className="mt-1.5 h-10 bg-muted animate-pulse rounded-md" />
+          ) : hasNoConfigs ? (
+            <div className="mt-1.5 p-4 border border-dashed border-border rounded-lg text-center">
+              <p className="text-sm text-muted-foreground mb-3">
+                No AI models configured yet
+              </p>
+              <Link to="/settings">
+                <Button variant="outline" size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add AI Model
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <Select value={systemName} onValueChange={setSystemName} disabled={isRunning}>
+              <SelectTrigger className="mt-1.5">
+                <SelectValue placeholder="Select AI system..." />
+              </SelectTrigger>
+              <SelectContent>
+                {llmConfigs.map((config) => (
+                  <SelectItem key={config.id} value={config.display_name}>
+                    <div className="flex items-center gap-2">
+                      <span>{config.display_name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({config.provider})
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
         </div>
 
@@ -187,7 +237,7 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
 
         <Button
           onClick={handleStart}
-          disabled={isRunning || selectedHeuristics.length === 0}
+          disabled={isRunning || selectedHeuristics.length === 0 || !systemName || hasNoConfigs}
           className="w-full"
           size="lg"
         >
