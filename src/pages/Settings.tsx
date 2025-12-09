@@ -84,8 +84,9 @@ const Settings = () => {
           setTeamId(profile.team_id);
 
           // Fetch LLM configurations
+          // Use safe view to avoid exposing encrypted API keys for reads
           const { data: configs } = await supabase
-            .from('llm_configurations')
+            .from('llm_configurations_safe')
             .select('*')
             .eq('team_id', profile.team_id);
 
