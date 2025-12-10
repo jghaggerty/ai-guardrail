@@ -53,7 +53,7 @@ export function SignInForm() {
         variant: 'destructive',
       });
     } else {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   };
 

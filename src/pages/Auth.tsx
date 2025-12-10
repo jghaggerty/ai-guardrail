@@ -63,7 +63,7 @@ function AuthContent() {
 
       if (profile?.onboarding_completed) {
         setOnboardingComplete(true);
-        navigate('/', { replace: true });
+        navigate('/dashboard', { replace: true });
       } else {
         // User is authenticated but hasn't completed onboarding
         // Move to verify-email step if still on signup
@@ -80,7 +80,7 @@ function AuthContent() {
   // Redirect when onboarding completes
   useEffect(() => {
     if (step === 'complete') {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [step, navigate]);
 
