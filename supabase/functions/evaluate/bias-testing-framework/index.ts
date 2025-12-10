@@ -60,6 +60,24 @@ export { confirmationBiasTestCases } from './tests/confirmation_bias/test_cases.
 export { sunkCostTestCases } from './tests/sunk_cost_fallacy/test_cases.ts';
 export { availabilityHeuristicTestCases } from './tests/availability_heuristic/test_cases.ts';
 
+// Scorers by bias type
+export { AnchoringScorer } from './tests/anchoring/scorer.ts';
+export { LossAversionScorer } from './tests/loss_aversion/scorer.ts';
+export { ConfirmationBiasScorer } from './tests/confirmation_bias/scorer.ts';
+export { SunkCostScorer } from './tests/sunk_cost_fallacy/scorer.ts';
+export { AvailabilityHeuristicScorer } from './tests/availability_heuristic/scorer.ts';
+
+// Base scorer utilities
+export { BaseScorer } from './utils/base_scorer.ts';
+export type { IndicatorAnalysis, PatternConfig } from './utils/base_scorer.ts';
+
+// Prompt generators by bias type
+export * as anchoringPrompts from './tests/anchoring/prompts.ts';
+export * as lossAversionPrompts from './tests/loss_aversion/prompts.ts';
+export * as confirmationBiasPrompts from './tests/confirmation_bias/prompts.ts';
+export * as sunkCostPrompts from './tests/sunk_cost_fallacy/prompts.ts';
+export * as availabilityHeuristicPrompts from './tests/availability_heuristic/prompts.ts';
+
 // Re-export all test cases as a single collection
 import { anchoringTestCases } from './tests/anchoring/test_cases.ts';
 import { lossAversionTestCases } from './tests/loss_aversion/test_cases.ts';
@@ -75,8 +93,17 @@ export const allTestCases = [
   ...availabilityHeuristicTestCases,
 ];
 
+// Import scorers for factory function
+import { AnchoringScorer } from './tests/anchoring/scorer.ts';
+import { LossAversionScorer } from './tests/loss_aversion/scorer.ts';
+import { ConfirmationBiasScorer } from './tests/confirmation_bias/scorer.ts';
+import { SunkCostScorer } from './tests/sunk_cost_fallacy/scorer.ts';
+import { AvailabilityHeuristicScorer } from './tests/availability_heuristic/scorer.ts';
+import type { BiasType, BiasScore, TestCase } from './core/types.ts';
+import { BaseScorer } from './utils/base_scorer.ts';
+
 // Framework metadata
-export const FRAMEWORK_VERSION = '1.0.0';
+export const FRAMEWORK_VERSION = '1.1.0';
 export const SUPPORTED_BIAS_TYPES = [
   'anchoring',
   'loss_aversion',
@@ -84,6 +111,34 @@ export const SUPPORTED_BIAS_TYPES = [
   'sunk_cost_fallacy',
   'availability_heuristic',
 ] as const;
+
+/**
+ * Factory function to get the appropriate scorer for a bias type.
+ */
+export function getScorerForBiasType(biasType: BiasType): BaseScorer {
+  switch (biasType) {
+    case 'anchoring':
+      return new AnchoringScorer();
+    case 'loss_aversion':
+      return new LossAversionScorer();
+    case 'confirmation_bias':
+      return new ConfirmationBiasScorer();
+    case 'sunk_cost_fallacy':
+      return new SunkCostScorer();
+    case 'availability_heuristic':
+      return new AvailabilityHeuristicScorer();
+    default:
+      throw new Error(`Unknown bias type: ${biasType}`);
+  }
+}
+
+/**
+ * Score a response using the appropriate scorer for the test case.
+ */
+export function scoreResponse(testCase: TestCase, response: string): BiasScore {
+  const scorer = getScorerForBiasType(testCase.biasType);
+  return scorer.score(testCase, response);
+}
 
 /**
  * Create a new TestRunner with the given configuration.
