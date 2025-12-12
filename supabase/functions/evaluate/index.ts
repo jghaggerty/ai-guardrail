@@ -686,8 +686,82 @@ Deno.serve(async (req) => {
 
       console.log('Created evaluation:', evaluation.id)
 
-      // Run heuristic detection
-      const findings = runDetection(body.heuristic_types, body.iteration_count)
+      // Create progress tracking record
+      const { data: progressRecord, error: progressError } = await supabase
+        .from('evaluation_progress')
+        .insert({
+          evaluation_id: evaluation.id,
+          progress_percent: 0,
+          current_phase: 'initializing',
+          tests_total: body.heuristic_types.length,
+          tests_completed: 0,
+          message: 'Starting evaluation...',
+        })
+        .select()
+        .single()
+
+      if (progressError) {
+        console.error('Progress record creation error:', progressError)
+      }
+
+      // Helper function to update progress
+      const updateProgress = async (
+        percent: number,
+        phase: string,
+        heuristic: string | null,
+        completed: number,
+        message: string
+      ) => {
+        if (progressRecord) {
+          await supabase
+            .from('evaluation_progress')
+            .update({
+              progress_percent: percent,
+              current_phase: phase,
+              current_heuristic: heuristic,
+              tests_completed: completed,
+              message,
+            })
+            .eq('id', progressRecord.id)
+        }
+      }
+
+      // Update progress: starting detection
+      await updateProgress(10, 'detecting', null, 0, 'Preparing detection algorithms...')
+
+      // Run heuristic detection with progress updates
+      const findings: HeuristicFindingResult[] = []
+      const totalHeuristics = body.heuristic_types.length
+      
+      for (let i = 0; i < totalHeuristics; i++) {
+        const heuristicType = body.heuristic_types[i]
+        const progressPercent = 10 + Math.round((i / totalHeuristics) * 60)
+        
+        await updateProgress(
+          progressPercent,
+          'detecting',
+          heuristicType,
+          i,
+          `Analyzing ${heuristicType.replace(/_/g, ' ')}...`
+        )
+        
+        // Run detection for this heuristic
+        const detectors: Record<HeuristicType, (iterations: number) => HeuristicFindingResult> = {
+          anchoring: detectAnchoringBias,
+          loss_aversion: detectLossAversion,
+          confirmation_bias: detectConfirmationBias,
+          sunk_cost: detectSunkCostFallacy,
+          availability_heuristic: detectAvailabilityHeuristic,
+        }
+        
+        const finding = detectors[heuristicType](body.iteration_count)
+        findings.push(finding)
+        
+        // Small delay to allow realtime updates to propagate
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      
+      await updateProgress(70, 'processing', null, totalHeuristics, 'Processing results...')
       console.log('Detection complete, findings:', findings.length)
 
       // Calculate overall score
@@ -754,6 +828,9 @@ Deno.serve(async (req) => {
       const trendData = generateHistoricalTrend(overallScore)
       const { hasDrift, message: driftMessage } = detectDrift(trendData)
 
+      // Update progress: finalizing
+      await updateProgress(90, 'finalizing', null, totalHeuristics, 'Generating reports...')
+
       // Fetch the complete data
       const { data: finalFindings } = await supabase
         .from('heuristic_findings')
@@ -765,6 +842,19 @@ Deno.serve(async (req) => {
         .select('*')
         .eq('evaluation_id', evaluation.id)
         .order('priority', { ascending: false })
+
+      // Update progress: complete
+      await updateProgress(100, 'completed', null, totalHeuristics, 'Evaluation complete!')
+
+      // Clean up progress record after a short delay
+      setTimeout(async () => {
+        if (progressRecord) {
+          await supabase
+            .from('evaluation_progress')
+            .delete()
+            .eq('id', progressRecord.id)
+        }
+      }, 5000)
 
       return new Response(JSON.stringify({
         evaluation: {

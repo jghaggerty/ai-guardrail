@@ -55,6 +55,53 @@ export type Database = {
           },
         ]
       }
+      evaluation_progress: {
+        Row: {
+          created_at: string
+          current_heuristic: string | null
+          current_phase: string
+          evaluation_id: string
+          id: string
+          message: string | null
+          progress_percent: number
+          tests_completed: number | null
+          tests_total: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_heuristic?: string | null
+          current_phase?: string
+          evaluation_id: string
+          id?: string
+          message?: string | null
+          progress_percent?: number
+          tests_completed?: number | null
+          tests_total?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_heuristic?: string | null
+          current_phase?: string
+          evaluation_id?: string
+          id?: string
+          message?: string | null
+          progress_percent?: number
+          tests_completed?: number | null
+          tests_total?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evaluation_progress_evaluation_id_fkey"
+            columns: ["evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "evaluations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evaluation_settings: {
         Row: {
           alert_emails: string[] | null
