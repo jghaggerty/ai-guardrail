@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { HeuristicFinding, EvaluationRun, EvaluationConfig } from '@/types/bias';
 import { ConfigurationPanel } from '@/components/ConfigurationPanel';
 import { HeuristicCard } from '@/components/HeuristicCard';
@@ -7,6 +7,7 @@ import { RecommendationsList } from '@/components/RecommendationsList';
 import { FindingDetailsDialog } from '@/components/FindingDetailsDialog';
 import { HistoryPanel } from '@/components/HistoryPanel';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEvaluationProgress } from '@/hooks/useEvaluationProgress';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,22 @@ const Index = () => {
   const [selectedFinding, setSelectedFinding] = useState<HeuristicFinding | null>(null);
   const [viewMode, setViewMode] = useState<'technical' | 'simplified'>('technical');
   const [isRunning, setIsRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
+  
+  // Real-time progress tracking
+  const { 
+    progressPercent, 
+    message: progressMessage, 
+    phaseLabel,
+    currentHeuristic,
+    testsCompleted,
+    testsTotal,
+    resetProgress,
+    isSubscribed
+  } = useEvaluationProgress({
+    onComplete: () => {
+      console.log('Evaluation completed via realtime');
+    }
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -31,20 +47,14 @@ const Index = () => {
 
   const handleStartEvaluation = async (config: EvaluationConfig) => {
     setIsRunning(true);
-    setProgress(0);
+    resetProgress();
 
     toast.info('Starting diagnostic analysis...');
 
     try {
-      const run = await runFullEvaluation(config, (progressValue, message) => {
-        setProgress(progressValue);
-        if (progressValue < 100) {
-          toast.info(message);
-        }
-      });
+      const run = await runFullEvaluation(config);
 
       setEvaluationRun(run);
-      setProgress(100);
       toast.success('Analysis completed successfully');
     } catch (error) {
       console.error('Evaluation failed:', error);
@@ -58,6 +68,7 @@ const Index = () => {
       }
     } finally {
       setIsRunning(false);
+      resetProgress();
     }
   };
 
@@ -73,8 +84,11 @@ const Index = () => {
   const handleNewAnalysis = () => {
     setEvaluationRun(null);
     setSelectedFinding(null);
-    setProgress(0);
+    resetProgress();
   };
+
+  // Display progress - use realtime when available, fallback to API progress
+  const displayProgress = isRunning ? (progressPercent > 0 ? progressPercent : 5) : 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,15 +143,33 @@ const Index = () => {
               <Activity className="w-5 h-5 text-primary animate-pulse" />
               <div className="flex-1">
                 <h3 className="font-semibold text-card-foreground">
-                  Running Diagnostic Analysis...
+                  {phaseLabel}
+                  {currentHeuristic && (
+                    <span className="ml-2 text-primary font-normal">
+                      — {currentHeuristic.replace(/_/g, ' ')}
+                    </span>
+                  )}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Processing behavioral assessment tests
+                  {progressMessage}
                 </p>
               </div>
-              <Badge variant="outline">{progress}%</Badge>
+              <div className="text-right">
+                <Badge variant="outline" className="mb-1">{displayProgress}%</Badge>
+                {testsTotal > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {testsCompleted}/{testsTotal} tests
+                  </p>
+                )}
+              </div>
             </div>
-            <Progress value={progress} className="h-2" />
+            <Progress value={displayProgress} className="h-2" />
+            {isSubscribed && (
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Live updates enabled
+              </p>
+            )}
           </Card>
         )}
 
