@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { HeuristicFinding, EvaluationRun, EvaluationConfig } from '@/types/bias';
 import { ConfigurationPanel } from '@/components/ConfigurationPanel';
 import { HeuristicCard } from '@/components/HeuristicCard';
@@ -14,15 +15,22 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { runFullEvaluation, ApiError } from '@/lib/api';
-import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History } from 'lucide-react';
+import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = () => {
   const { signOut, user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const modelFilter = searchParams.get('model');
+  
   const [evaluationRun, setEvaluationRun] = useState<EvaluationRun | null>(null);
   const [selectedFinding, setSelectedFinding] = useState<HeuristicFinding | null>(null);
   const [viewMode, setViewMode] = useState<'technical' | 'simplified'>('technical');
   const [isRunning, setIsRunning] = useState(false);
+
+  const clearModelFilter = () => {
+    setSearchParams({});
+  };
   
   // Real-time progress tracking
   const { 
@@ -175,6 +183,21 @@ const Index = () => {
 
         {!evaluationRun && !isRunning ? (
           <div className="space-y-8">
+            {modelFilter && (
+              <Card className="p-4 flex items-center justify-between bg-primary/5 border-primary/20">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Filtered</Badge>
+                  <span className="text-sm text-card-foreground">
+                    Showing evaluations for: <strong>{modelFilter}</strong>
+                  </span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={clearModelFilter}>
+                  <X className="w-4 h-4 mr-1" />
+                  Clear Filter
+                </Button>
+              </Card>
+            )}
+            
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2">
                 <Card className="p-8 text-center">
@@ -230,8 +253,11 @@ const Index = () => {
               </div>
             </div>
             
-            {/* Historical analyses - all systems */}
-            <HistoryPanel onLoadEvaluation={setEvaluationRun} />
+            {/* Historical analyses - filtered by model if param present */}
+            <HistoryPanel 
+              onLoadEvaluation={setEvaluationRun} 
+              filterSystem={modelFilter || undefined}
+            />
           </div>
         ) : evaluationRun && (
           <Tabs defaultValue="heuristics" className="space-y-6">
