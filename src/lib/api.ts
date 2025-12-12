@@ -203,7 +203,9 @@ export async function runFullEvaluation(
   // Transform the response
   const findings = data.findings.map(transformHeuristicFinding);
   const recommendations = data.recommendations.map(transformRecommendation);
-  const baselineData = transformTrendData(data.trends.data_points);
+  
+  // Fetch real historical baseline data instead of using synthetic trend data
+  const baselineData = await fetchHistoricalBaselineData(config.systemName);
 
   onProgress?.(100, 'Analysis complete');
 
@@ -226,6 +228,32 @@ export async function runFullEvaluation(
 export async function checkAuth(): Promise<boolean> {
   const { data: { session } } = await supabase.auth.getSession();
   return !!session;
+}
+
+/**
+ * Fetch historical baseline data for longitudinal chart
+ * Returns actual evaluation scores over time for a given AI system
+ */
+async function fetchHistoricalBaselineData(aiSystemName: string): Promise<BaselineData[]> {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .select('created_at, overall_score, zone_status')
+    .eq('ai_system_name', aiSystemName)
+    .eq('status', 'completed')
+    .not('overall_score', 'is', null)
+    .order('created_at', { ascending: true })
+    .limit(30);
+
+  if (error || !data) {
+    console.error('Error fetching baseline data:', error);
+    return [];
+  }
+
+  return data.map(e => ({
+    timestamp: new Date(e.created_at),
+    score: 100 - (e.overall_score || 0), // Convert bias score to performance score (lower bias = higher performance)
+    zone: (e.zone_status as ZoneStatus) || 'green',
+  }));
 }
 
 // Historical evaluation summary type
@@ -334,8 +362,8 @@ export async function loadEvaluationDetails(evaluationId: string): Promise<Evalu
     relatedHeuristic: mapBackendHeuristicType(r.heuristic_type),
   }));
 
-  // Generate baseline comparison data (mock for historical - could be enhanced)
-  const baselineData: BaselineData[] = [];
+  // Fetch real historical evaluations for baseline comparison
+  const baselineData = await fetchHistoricalBaselineData(evaluation.ai_system_name);
 
   return {
     id: evaluation.id,
