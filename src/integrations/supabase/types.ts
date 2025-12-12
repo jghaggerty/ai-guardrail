@@ -116,6 +116,7 @@ export type Database = {
           schedule_day: number | null
           schedule_frequency: string | null
           schedule_time: string | null
+          selected_heuristics: string[] | null
           team_id: string
           temperature: number | null
           test_suites: string[] | null
@@ -134,6 +135,7 @@ export type Database = {
           schedule_day?: number | null
           schedule_frequency?: string | null
           schedule_time?: string | null
+          selected_heuristics?: string[] | null
           team_id: string
           temperature?: number | null
           test_suites?: string[] | null
@@ -152,6 +154,7 @@ export type Database = {
           schedule_day?: number | null
           schedule_frequency?: string | null
           schedule_time?: string | null
+          selected_heuristics?: string[] | null
           team_id?: string
           temperature?: number | null
           test_suites?: string[] | null

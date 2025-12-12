@@ -68,9 +68,10 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
     'loss_aversion',
     'confirmation_bias'
   ]);
+  const [teamId, setTeamId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchLLMConfigs = async () => {
+    const fetchConfig = async () => {
       if (!user) return;
 
       try {
@@ -82,7 +83,9 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
           .single();
 
         if (profile?.team_id) {
-          // Use safe view to avoid exposing encrypted API keys
+          setTeamId(profile.team_id);
+          
+          // Fetch LLM configs
           const { data: configs } = await supabase
             .from('llm_configurations_safe')
             .select('id, display_name, provider, model_name, is_connected')
@@ -90,27 +93,45 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
 
           if (configs && configs.length > 0) {
             setLlmConfigs(configs);
-            // Set the first connected config as default
             const firstConnected = configs.find(c => c.is_connected) || configs[0];
             setSystemName(firstConnected.display_name);
           }
+
+          // Fetch saved heuristic selections
+          const { data: settings } = await supabase
+            .from('evaluation_settings')
+            .select('selected_heuristics')
+            .eq('team_id', profile.team_id)
+            .maybeSingle();
+
+          if (settings?.selected_heuristics && settings.selected_heuristics.length > 0) {
+            setSelectedHeuristics(settings.selected_heuristics as HeuristicType[]);
+          }
         }
       } catch (error) {
-        console.error('Error fetching LLM configs:', error);
+        console.error('Error fetching config:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchLLMConfigs();
+    fetchConfig();
   }, [user]);
 
-  const handleHeuristicToggle = (heuristic: HeuristicType) => {
-    setSelectedHeuristics(prev =>
-      prev.includes(heuristic)
-        ? prev.filter(h => h !== heuristic)
-        : [...prev, heuristic]
-    );
+  const handleHeuristicToggle = async (heuristic: HeuristicType) => {
+    const newSelection = selectedHeuristics.includes(heuristic)
+      ? selectedHeuristics.filter(h => h !== heuristic)
+      : [...selectedHeuristics, heuristic];
+    
+    setSelectedHeuristics(newSelection);
+
+    // Persist selection to database
+    if (teamId) {
+      await supabase
+        .from('evaluation_settings')
+        .update({ selected_heuristics: newSelection })
+        .eq('team_id', teamId);
+    }
   };
 
   const handleStart = () => {
