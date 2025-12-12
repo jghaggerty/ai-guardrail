@@ -280,6 +280,7 @@ export type Database = {
           model_name: string
           model_version: string | null
           provider: string
+          schedule_frequency: string | null
           team_id: string
           updated_at: string
           user_id: string | null
@@ -296,6 +297,7 @@ export type Database = {
           model_name: string
           model_version?: string | null
           provider: string
+          schedule_frequency?: string | null
           team_id: string
           updated_at?: string
           user_id?: string | null
@@ -312,6 +314,7 @@ export type Database = {
           model_name?: string
           model_version?: string | null
           provider?: string
+          schedule_frequency?: string | null
           team_id?: string
           updated_at?: string
           user_id?: string | null
