@@ -26,9 +26,13 @@ import {
   Coins,
   Sparkles,
   Quote,
+  LayoutDashboard,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Landing = () => {
+  const { user, loading } = useAuth();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -54,12 +58,25 @@ const Landing = () => {
               </a>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="ghost" asChild>
-                <Link to="/auth">Log In</Link>
-              </Button>
-              <Button asChild className="shadow-lg shadow-primary/20">
-                <Link to="/auth">Start Testing Free</Link>
-              </Button>
+              {!loading && (
+                user ? (
+                  <Button asChild className="shadow-lg shadow-primary/20">
+                    <Link to="/dashboard">
+                      <LayoutDashboard className="mr-2 h-4 w-4" />
+                      Go to Dashboard
+                    </Link>
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="ghost" asChild>
+                      <Link to="/auth">Log In</Link>
+                    </Button>
+                    <Button asChild className="shadow-lg shadow-primary/20">
+                      <Link to="/auth">Start Testing Free</Link>
+                    </Button>
+                  </>
+                )
+              )}
             </div>
           </div>
         </div>
