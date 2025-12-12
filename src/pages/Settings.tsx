@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock, Play } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock, Play, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { addDays, addWeeks, addMonths, formatDistanceToNow, isPast } from 'date-fns';
@@ -703,6 +703,14 @@ const Settings = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {config.last_evaluated_at && (
+                          <Link to={`/dashboard?model=${encodeURIComponent(config.display_name)}`}>
+                            <Button variant="outline" size="sm">
+                              <ExternalLink className="w-4 h-4 mr-1" />
+                              View Results
+                            </Button>
+                          </Link>
+                        )}
                         <Button 
                           variant="default" 
                           size="sm" 
