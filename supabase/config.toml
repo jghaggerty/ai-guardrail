@@ -5,3 +5,9 @@ verify_jwt = true
 
 [functions.store-api-key]
 verify_jwt = true
+
+[functions.decrypt-api-key]
+verify_jwt = true
+
+[functions.test-connection]
+verify_jwt = true

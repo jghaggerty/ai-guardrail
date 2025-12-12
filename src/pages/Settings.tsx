@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -61,6 +61,7 @@ const Settings = () => {
   const [isLLMDialogOpen, setIsLLMDialogOpen] = useState(false);
   const [editingLLM, setEditingLLM] = useState<LLMConfig | null>(null);
   const [savingApiKey, setSavingApiKey] = useState(false);
+  const [testingConnection, setTestingConnection] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [llmForm, setLlmForm] = useState({
     display_name: '',
@@ -167,6 +168,36 @@ const Settings = () => {
       return false;
     } finally {
       setSavingApiKey(false);
+    }
+  };
+
+  const handleTestConnection = async (configId: string) => {
+    setTestingConnection(configId);
+    try {
+      const response = await supabase.functions.invoke('test-connection', {
+        body: { configId }
+      });
+
+      if (response.error) throw response.error;
+
+      const result = response.data;
+      if (result.success) {
+        toast.success('Connection successful!');
+        // Update local state
+        setLlmConfigs(prev => prev.map(c => 
+          c.id === configId ? { ...c, is_connected: true } : c
+        ));
+      } else {
+        toast.error(`Connection failed: ${result.message}`);
+        setLlmConfigs(prev => prev.map(c => 
+          c.id === configId ? { ...c, is_connected: false } : c
+        ));
+      }
+    } catch (error) {
+      console.error('Error testing connection:', error);
+      toast.error('Failed to test connection');
+    } finally {
+      setTestingConnection(null);
     }
   };
 
@@ -533,6 +564,19 @@ const Settings = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleTestConnection(config.id)}
+                          disabled={testingConnection === config.id || !config.is_connected}
+                          title={!config.is_connected ? 'Add an API key first' : 'Test connection'}
+                        >
+                          {testingConnection === config.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Wifi className="w-4 h-4" />
+                          )}
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => handleEditLLM(config)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
