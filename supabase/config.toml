@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.test-connection]
 verify_jwt = true
+
+[functions.scheduled-evaluations]
+verify_jwt = false
