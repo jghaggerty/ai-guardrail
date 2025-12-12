@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -23,6 +23,7 @@ interface LLMConfig {
   is_connected: boolean;
   environment: string | null;
   schedule_frequency: string | null;
+  last_evaluated_at: string | null;
 }
 
 const SCHEDULE_OPTIONS = [
@@ -106,10 +107,30 @@ const Settings = () => {
             .eq('team_id', profile.team_id);
 
           if (configs) {
-            // Map data to include schedule_frequency (column not yet in view)
+            // Fetch last evaluation times for each config
+            const configNames = configs.map(c => c.display_name);
+            const { data: lastEvals } = await supabase
+              .from('evaluations')
+              .select('ai_system_name, completed_at')
+              .in('ai_system_name', configNames)
+              .eq('status', 'completed')
+              .order('completed_at', { ascending: false });
+
+            // Build map of last evaluation times
+            const lastEvalMap = new Map<string, string>();
+            if (lastEvals) {
+              for (const evalRecord of lastEvals) {
+                if (!lastEvalMap.has(evalRecord.ai_system_name) && evalRecord.completed_at) {
+                  lastEvalMap.set(evalRecord.ai_system_name, evalRecord.completed_at);
+                }
+              }
+            }
+
+            // Map data to include schedule_frequency and last_evaluated_at
             setLlmConfigs(configs.map(config => ({
               ...config,
-              schedule_frequency: (config as any).schedule_frequency || 'manual'
+              schedule_frequency: (config as any).schedule_frequency || 'manual',
+              last_evaluated_at: lastEvalMap.get(config.display_name!) || null
             })));
           }
 
@@ -292,7 +313,7 @@ const Settings = () => {
             }
           }
           
-          setLlmConfigs(prev => [...prev, { ...data, is_connected: !!llmForm.api_key, schedule_frequency: llmForm.schedule_frequency }]);
+          setLlmConfigs(prev => [...prev, { ...data, is_connected: !!llmForm.api_key, schedule_frequency: llmForm.schedule_frequency, last_evaluated_at: null }]);
           toast.success('LLM configuration added');
         }
       }
@@ -583,10 +604,18 @@ const Settings = () => {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            {config.provider} • {config.model_name}
-                            {config.model_version && ` • ${config.model_version}`}
-                          </p>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                            <span>{config.provider} • {config.model_name}{config.model_version && ` • ${config.model_version}`}</span>
+                            {config.last_evaluated_at && (
+                              <span className="flex items-center gap-1">
+                                <CalendarClock className="w-3 h-3" />
+                                Last evaluated: {new Date(config.last_evaluated_at).toLocaleDateString()}
+                              </span>
+                            )}
+                            {!config.last_evaluated_at && (
+                              <span className="text-muted-foreground/60">Never evaluated</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
