@@ -1,9 +1,9 @@
 import { LLMClient, LLMClientConfig, LLMOptions, LLMResponse, LLMError } from './types.ts';
 
-const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 
-export class GoogleClient implements LLMClient {
-  provider = 'Google';
+export class DeepSeekClient implements LLMClient {
+  provider = 'DeepSeek';
   private apiKey: string;
   private model: string;
   private baseUrl: string;
@@ -17,13 +17,10 @@ export class GoogleClient implements LLMClient {
   private getModelEndpoint(model: string): string {
     // Map common model names to API model names
     const modelMap: Record<string, string> = {
-      'gemini-pro': 'gemini-pro',
-      'gemini-ultra': 'gemini-ultra',
-      'gemini-1.5-pro': 'gemini-1.5-pro',
-      'gemini-1.5-flash': 'gemini-1.5-flash',
-      'gemini-2.5-pro': 'gemini-2.5-pro-preview-06-05',
-      'gemini-2.5-flash': 'gemini-2.5-flash-preview-05-20',
-      'palm-2': 'text-bison-001',
+      'deepseek-v3': 'deepseek-chat',
+      'deepseek-r1': 'deepseek-reasoner',
+      'deepseek-chat': 'deepseek-chat',
+      'deepseek-coder': 'deepseek-coder',
     };
     return modelMap[model] || model;
   }
@@ -38,21 +35,17 @@ export class GoogleClient implements LLMClient {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const url = `${this.baseUrl}/models/${model}:generateContent?key=${this.apiKey}`;
-      
-      const response = await fetch(url, {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            maxOutputTokens: maxTokens,
-            temperature,
-          },
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: maxTokens,
+          temperature,
         }),
         signal: controller.signal,
       });
@@ -61,8 +54,8 @@ export class GoogleClient implements LLMClient {
 
       if (!response.ok) {
         const errorBody = await response.text();
-        let errorMessage = `Google AI API error: ${response.status}`;
-        
+        let errorMessage = `DeepSeek API error: ${response.status}`;
+
         try {
           const errorJson = JSON.parse(errorBody);
           errorMessage = errorJson.error?.message || errorMessage;
@@ -79,39 +72,34 @@ export class GoogleClient implements LLMClient {
       }
 
       const data = await response.json();
-      const candidate = data.candidates?.[0];
-      const content = candidate?.content?.parts?.[0]?.text;
+      const choice = data.choices?.[0];
 
-      if (!content) {
-        // Check for safety blocking
-        if (candidate?.finishReason === 'SAFETY') {
-          throw new LLMError('Response blocked by safety filters', undefined, false);
-        }
-        throw new LLMError('No content in Google AI response', undefined, false);
+      if (!choice?.message?.content) {
+        throw new LLMError('No content in DeepSeek response', undefined, false);
       }
 
       return {
-        content,
-        tokensUsed: data.usageMetadata ? {
-          prompt: data.usageMetadata.promptTokenCount || 0,
-          completion: data.usageMetadata.candidatesTokenCount || 0,
-          total: data.usageMetadata.totalTokenCount || 0,
+        content: choice.message.content,
+        tokensUsed: data.usage ? {
+          prompt: data.usage.prompt_tokens,
+          completion: data.usage.completion_tokens,
+          total: data.usage.total_tokens,
         } : undefined,
-        finishReason: candidate?.finishReason,
+        finishReason: choice.finish_reason,
       };
     } catch (error) {
       clearTimeout(timeoutId);
-      
+
       if (error instanceof LLMError) {
         throw error;
       }
-      
+
       const err = error as Error;
       if (err.name === 'AbortError') {
         throw new LLMError('Request timeout', undefined, true);
       }
-      
-      throw new LLMError(`Google AI request failed: ${err.message || 'Unknown error'}`, undefined, true);
+
+      throw new LLMError(`DeepSeek request failed: ${err.message || 'Unknown error'}`, undefined, true);
     }
   }
 

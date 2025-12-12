@@ -1,9 +1,10 @@
 import { LLMClient, LLMClientConfig, LLMOptions, LLMResponse, LLMError } from './types.ts';
 
-const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+// Default to Together AI as the inference provider for Llama models
+const DEFAULT_BASE_URL = 'https://api.together.xyz/v1';
 
-export class GoogleClient implements LLMClient {
-  provider = 'Google';
+export class MetaClient implements LLMClient {
+  provider = 'Meta';
   private apiKey: string;
   private model: string;
   private baseUrl: string;
@@ -15,15 +16,19 @@ export class GoogleClient implements LLMClient {
   }
 
   private getModelEndpoint(model: string): string {
-    // Map common model names to API model names
+    // Map common model names to API model names for various providers
     const modelMap: Record<string, string> = {
-      'gemini-pro': 'gemini-pro',
-      'gemini-ultra': 'gemini-ultra',
-      'gemini-1.5-pro': 'gemini-1.5-pro',
-      'gemini-1.5-flash': 'gemini-1.5-flash',
-      'gemini-2.5-pro': 'gemini-2.5-pro-preview-06-05',
-      'gemini-2.5-flash': 'gemini-2.5-flash-preview-05-20',
-      'palm-2': 'text-bison-001',
+      // Llama 3.1 models
+      'llama-3.1-8b': 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+      'llama-3.1-70b': 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
+      'llama-3.1-405b': 'meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo',
+      // Llama 4 Scout models
+      'llama-4-scout': 'meta-llama/Llama-4-Scout-17B-16E-Instruct',
+      'llama-4-maverick': 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8',
+      // Legacy Llama 3 models
+      'llama-3': 'meta-llama/Meta-Llama-3-70B-Instruct-Turbo',
+      'llama-3-8b': 'meta-llama/Meta-Llama-3-8B-Instruct-Turbo',
+      'llama-3-70b': 'meta-llama/Meta-Llama-3-70B-Instruct-Turbo',
     };
     return modelMap[model] || model;
   }
@@ -38,21 +43,17 @@ export class GoogleClient implements LLMClient {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const url = `${this.baseUrl}/models/${model}:generateContent?key=${this.apiKey}`;
-      
-      const response = await fetch(url, {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            maxOutputTokens: maxTokens,
-            temperature,
-          },
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: maxTokens,
+          temperature,
         }),
         signal: controller.signal,
       });
@@ -61,8 +62,8 @@ export class GoogleClient implements LLMClient {
 
       if (!response.ok) {
         const errorBody = await response.text();
-        let errorMessage = `Google AI API error: ${response.status}`;
-        
+        let errorMessage = `Meta/Llama API error: ${response.status}`;
+
         try {
           const errorJson = JSON.parse(errorBody);
           errorMessage = errorJson.error?.message || errorMessage;
@@ -79,39 +80,34 @@ export class GoogleClient implements LLMClient {
       }
 
       const data = await response.json();
-      const candidate = data.candidates?.[0];
-      const content = candidate?.content?.parts?.[0]?.text;
+      const choice = data.choices?.[0];
 
-      if (!content) {
-        // Check for safety blocking
-        if (candidate?.finishReason === 'SAFETY') {
-          throw new LLMError('Response blocked by safety filters', undefined, false);
-        }
-        throw new LLMError('No content in Google AI response', undefined, false);
+      if (!choice?.message?.content) {
+        throw new LLMError('No content in Meta/Llama response', undefined, false);
       }
 
       return {
-        content,
-        tokensUsed: data.usageMetadata ? {
-          prompt: data.usageMetadata.promptTokenCount || 0,
-          completion: data.usageMetadata.candidatesTokenCount || 0,
-          total: data.usageMetadata.totalTokenCount || 0,
+        content: choice.message.content,
+        tokensUsed: data.usage ? {
+          prompt: data.usage.prompt_tokens,
+          completion: data.usage.completion_tokens,
+          total: data.usage.total_tokens,
         } : undefined,
-        finishReason: candidate?.finishReason,
+        finishReason: choice.finish_reason,
       };
     } catch (error) {
       clearTimeout(timeoutId);
-      
+
       if (error instanceof LLMError) {
         throw error;
       }
-      
+
       const err = error as Error;
       if (err.name === 'AbortError') {
         throw new LLMError('Request timeout', undefined, true);
       }
-      
-      throw new LLMError(`Google AI request failed: ${err.message || 'Unknown error'}`, undefined, true);
+
+      throw new LLMError(`Meta/Llama request failed: ${err.message || 'Unknown error'}`, undefined, true);
     }
   }
 

@@ -2,8 +2,10 @@ import { LLMClient, LLMClientConfig, LLMError } from './types.ts';
 import { OpenAIClient } from './openai.ts';
 import { AnthropicClient } from './anthropic.ts';
 import { GoogleClient } from './google.ts';
+import { MetaClient } from './meta.ts';
+import { DeepSeekClient } from './deepseek.ts';
 
-export type SupportedProvider = 'OpenAI' | 'Anthropic' | 'Google' | 'Azure' | 'AWS Bedrock' | 'Custom';
+export type SupportedProvider = 'OpenAI' | 'Anthropic' | 'Google' | 'Meta' | 'DeepSeek' | 'Azure' | 'AWS Bedrock' | 'Custom';
 
 // Create the appropriate LLM client based on provider
 export function createLLMClient(
@@ -27,7 +29,13 @@ export function createLLMClient(
     
     case 'Google':
       return new GoogleClient(config);
-    
+
+    case 'Meta':
+      return new MetaClient(config);
+
+    case 'DeepSeek':
+      return new DeepSeekClient(config);
+
     case 'Azure':
       // Azure uses OpenAI-compatible API with different base URL
       if (!baseUrl) {
@@ -59,9 +67,11 @@ export function createLLMClient(
 // Get provider-specific default model
 export function getDefaultModel(provider: string): string {
   const defaults: Record<string, string> = {
-    'OpenAI': 'gpt-4',
-    'Anthropic': 'claude-3-sonnet-20240229',
-    'Google': 'gemini-pro',
+    'OpenAI': 'gpt-4o',
+    'Anthropic': 'claude-sonnet-4-20250514',
+    'Google': 'gemini-2.5-pro',
+    'Meta': 'llama-3.1-70b',
+    'DeepSeek': 'deepseek-v3',
     'Azure': 'gpt-4',
     'Custom': 'gpt-4',
   };
@@ -70,6 +80,6 @@ export function getDefaultModel(provider: string): string {
 
 // Validate provider is supported
 export function isProviderSupported(provider: string): boolean {
-  const supported = ['OpenAI', 'Anthropic', 'Google', 'Azure', 'Custom'];
+  const supported = ['OpenAI', 'Anthropic', 'Google', 'Meta', 'DeepSeek', 'Azure', 'Custom'];
   return supported.includes(provider);
 }
