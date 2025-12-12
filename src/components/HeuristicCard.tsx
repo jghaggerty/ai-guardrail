@@ -14,8 +14,9 @@ const getHeuristicIcon = (type: string) => {
   switch (type) {
     case 'anchoring': return Target;
     case 'loss_aversion': return DollarSign;
-    case 'confirmation': return Brain;
+    case 'confirmation_bias': return Brain;
     case 'sunk_cost': return TrendingUp;
+    case 'availability_heuristic': return AlertTriangle;
     default: return AlertTriangle;
   }
 };

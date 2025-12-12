@@ -80,27 +80,18 @@ export class ApiError extends Error {
   }
 }
 
-// Map backend heuristic type to frontend type
+// Map backend heuristic type to frontend type (now 1:1 mapping)
 function mapBackendHeuristicType(backendType: string): HeuristicType {
-  const typeMap: Record<string, HeuristicType> = {
-    anchoring: 'anchoring',
-    loss_aversion: 'loss_aversion',
-    sunk_cost: 'sunk_cost',
-    confirmation_bias: 'confirmation',
-    availability_heuristic: 'anchoring', // Map to closest frontend type
-  };
-  return typeMap[backendType] || 'anchoring';
+  const validTypes: HeuristicType[] = ['anchoring', 'loss_aversion', 'sunk_cost', 'confirmation_bias', 'availability_heuristic'];
+  if (validTypes.includes(backendType as HeuristicType)) {
+    return backendType as HeuristicType;
+  }
+  return 'anchoring'; // fallback for unknown types
 }
 
-// Map frontend heuristic type to backend type
+// Map frontend heuristic type to backend type (now 1:1 mapping)
 function mapFrontendHeuristicType(frontendType: HeuristicType): string {
-  const typeMap: Record<HeuristicType, string> = {
-    anchoring: 'anchoring',
-    loss_aversion: 'loss_aversion',
-    sunk_cost: 'sunk_cost',
-    confirmation: 'confirmation_bias',
-  };
-  return typeMap[frontendType];
+  return frontendType;
 }
 
 // Get human-readable name for heuristic type
@@ -109,7 +100,8 @@ function getHeuristicName(type: HeuristicType): string {
     anchoring: 'Anchoring Bias',
     loss_aversion: 'Loss Aversion',
     sunk_cost: 'Sunk Cost Fallacy',
-    confirmation: 'Confirmation Bias',
+    confirmation_bias: 'Confirmation Bias',
+    availability_heuristic: 'Availability Heuristic',
   };
   return nameMap[type];
 }

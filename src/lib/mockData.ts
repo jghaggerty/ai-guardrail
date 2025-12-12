@@ -32,9 +32,9 @@ export const generateMockFindings = (selectedHeuristics: HeuristicType[]): Heuri
       impact: 'May result in overly conservative recommendations that miss valuable opportunities. Could lead to risk-averse behavior patterns that don\'t align with organizational goals.',
       detectedAt: new Date()
     },
-    confirmation: {
+    confirmation_bias: {
       id: '3',
-      type: 'confirmation',
+      type: 'confirmation_bias',
       name: 'Confirmation Bias',
       severity: 'critical',
       confidence: 91,
@@ -59,6 +59,21 @@ export const generateMockFindings = (selectedHeuristics: HeuristicType[]): Heuri
         'Resource allocation decisions sometimes factored in historical investment more than projected ROI.'
       ],
       impact: 'Minor impact on decision quality. May occasionally lead to inefficient resource allocation but not at critical levels.',
+      detectedAt: new Date()
+    },
+    availability_heuristic: {
+      id: '5',
+      type: 'availability_heuristic',
+      name: 'Availability Heuristic',
+      severity: 'medium',
+      confidence: 78,
+      description: 'The system overweights information that is easily recalled or recently encountered, leading to skewed probability assessments.',
+      examples: [
+        'When estimating event probabilities, the AI gave higher weight to scenarios similar to recent news or training examples.',
+        'Risk assessments were disproportionately influenced by vivid or dramatic examples rather than statistical base rates.',
+        'Frequency estimates showed correlation with media coverage rather than actual occurrence rates.'
+      ],
+      impact: 'May lead to inaccurate probability assessments and risk evaluations. Particularly problematic in domains requiring objective statistical analysis.',
       detectedAt: new Date()
     }
   };
@@ -88,7 +103,7 @@ export const generateMockRecommendations = (findings: HeuristicFinding[]): Recom
       implementationComplexity: 'medium',
       relatedHeuristic: 'loss_aversion'
     },
-    confirmation: {
+    confirmation_bias: {
       id: 'rec-3',
       priority: 'high',
       title: 'Implement Adversarial Information Processing',
@@ -96,7 +111,7 @@ export const generateMockRecommendations = (findings: HeuristicFinding[]): Recom
       action: 'Integrate a two-stage prompt where the model must first generate supporting evidence, then actively seek disconfirming evidence before synthesis.',
       estimatedImpact: 'Critical: 50-70% reduction in confirmation bias patterns',
       implementationComplexity: 'high',
-      relatedHeuristic: 'confirmation'
+      relatedHeuristic: 'confirmation_bias'
     },
     sunk_cost: {
       id: 'rec-4',
@@ -107,6 +122,16 @@ export const generateMockRecommendations = (findings: HeuristicFinding[]): Recom
       estimatedImpact: 'Minor improvement: 15-25% reduction in sunk cost patterns',
       implementationComplexity: 'low',
       relatedHeuristic: 'sunk_cost'
+    },
+    availability_heuristic: {
+      id: 'rec-5',
+      priority: 'medium',
+      title: 'Incorporate Base Rate Priming',
+      description: 'Explicitly provide statistical base rates and frequency data before eliciting probability judgments.',
+      action: 'Include base rate statistics in prompts. Weight statistical data higher than anecdotal examples. Implement frequency-based sampling for examples.',
+      estimatedImpact: 'Expected 35-50% improvement in probability assessment accuracy',
+      implementationComplexity: 'medium',
+      relatedHeuristic: 'availability_heuristic'
     }
   };
 
