@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -73,6 +73,7 @@ const Settings = () => {
   const [editingLLM, setEditingLLM] = useState<LLMConfig | null>(null);
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
+  const [runningEvaluation, setRunningEvaluation] = useState<string | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [llmForm, setLlmForm] = useState({
     display_name: '',
@@ -236,6 +237,60 @@ const Settings = () => {
       toast.error('Failed to test connection');
     } finally {
       setTestingConnection(null);
+    }
+  };
+
+  const handleRunEvaluation = async (config: LLMConfig) => {
+    if (!teamId || !user) return;
+    
+    setRunningEvaluation(config.id);
+    try {
+      // Get evaluation settings for the team
+      const heuristicTypes = evalSettings?.test_suites || ['cognitive_bias'];
+      const iterationCount = evalSettings?.sample_size || 100;
+
+      // Create evaluation record
+      const { data: evaluation, error: createError } = await supabase
+        .from('evaluations')
+        .insert({
+          ai_system_name: config.display_name,
+          heuristic_types: ['anchoring', 'loss_aversion', 'confirmation_bias'],
+          iteration_count: iterationCount,
+          status: 'pending',
+          team_id: teamId,
+          user_id: user.id
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      // Trigger the evaluate function
+      const response = await supabase.functions.invoke('evaluate', {
+        body: {
+          evaluation_id: evaluation.id,
+          ai_system_name: config.display_name,
+          heuristic_types: ['anchoring', 'loss_aversion', 'confirmation_bias'],
+          iteration_count: iterationCount,
+          llm_config_id: config.id
+        }
+      });
+
+      if (response.error) throw response.error;
+
+      toast.success(`Evaluation started for ${config.display_name}`);
+      
+      // Update last_evaluated_at in local state
+      setLlmConfigs(prev => prev.map(c => 
+        c.id === config.id 
+          ? { ...c, last_evaluated_at: new Date().toISOString() }
+          : c
+      ));
+    } catch (error) {
+      console.error('Error running evaluation:', error);
+      toast.error('Failed to start evaluation');
+    } finally {
+      setRunningEvaluation(null);
     }
   };
 
@@ -619,6 +674,20 @@ const Settings = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          onClick={() => handleRunEvaluation(config)}
+                          disabled={runningEvaluation === config.id || !config.is_connected}
+                          title={!config.is_connected ? 'Connect API key first' : 'Run evaluation now'}
+                        >
+                          {runningEvaluation === config.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                          ) : (
+                            <Play className="w-4 h-4 mr-1" />
+                          )}
+                          Run Now
+                        </Button>
                         <Button 
                           variant="outline" 
                           size="sm" 
