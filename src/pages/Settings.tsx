@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -22,7 +22,15 @@ interface LLMConfig {
   base_url: string | null;
   is_connected: boolean;
   environment: string | null;
+  schedule_frequency: string | null;
 }
+
+const SCHEDULE_OPTIONS = [
+  { value: 'manual', label: 'Manual Only' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' }
+];
 
 interface EvaluationSettings {
   id: string;
@@ -70,7 +78,8 @@ const Settings = () => {
     model_version: '',
     base_url: '',
     environment: 'development',
-    api_key: ''
+    api_key: '',
+    schedule_frequency: 'manual'
   });
 
   useEffect(() => {
@@ -127,7 +136,8 @@ const Settings = () => {
       model_version: '',
       base_url: '',
       environment: 'development',
-      api_key: ''
+      api_key: '',
+      schedule_frequency: 'manual'
     });
     setEditingLLM(null);
     setShowApiKey(false);
@@ -142,7 +152,8 @@ const Settings = () => {
       model_version: config.model_version || '',
       base_url: config.base_url || '',
       environment: config.environment || 'development',
-      api_key: '' // Never pre-fill API key for security
+      api_key: '', // Never pre-fill API key for security
+      schedule_frequency: config.schedule_frequency || 'manual'
     });
     setShowApiKey(false);
     setIsLLMDialogOpen(true);
@@ -217,6 +228,7 @@ const Settings = () => {
             base_url: llmForm.base_url || null,
             environment: llmForm.environment,
             is_connected: !!llmForm.api_key || editingLLM.is_connected,
+            schedule_frequency: llmForm.schedule_frequency,
             updated_at: new Date().toISOString()
           })
           .eq('id', editingLLM.id);
@@ -236,7 +248,8 @@ const Settings = () => {
                 ...llmForm, 
                 model_version: llmForm.model_version || null, 
                 base_url: llmForm.base_url || null,
-                is_connected: !!llmForm.api_key || c.is_connected
+                is_connected: !!llmForm.api_key || c.is_connected,
+                schedule_frequency: llmForm.schedule_frequency
               }
             : c
         ));
@@ -254,7 +267,8 @@ const Settings = () => {
             model_version: llmForm.model_version || null,
             base_url: llmForm.base_url || null,
             environment: llmForm.environment,
-            is_connected: !!llmForm.api_key
+            is_connected: !!llmForm.api_key,
+            schedule_frequency: llmForm.schedule_frequency
           })
           .select()
           .single();
@@ -272,7 +286,7 @@ const Settings = () => {
             }
           }
           
-          setLlmConfigs(prev => [...prev, { ...data, is_connected: !!llmForm.api_key }]);
+          setLlmConfigs(prev => [...prev, { ...data, is_connected: !!llmForm.api_key, schedule_frequency: llmForm.schedule_frequency }]);
           toast.success('LLM configuration added');
         }
       }
