@@ -41,7 +41,7 @@ const heuristics: { value: HeuristicType; label: string; description: string }[]
     description: 'Asymmetric treatment of gains versus losses'
   },
   {
-    value: 'confirmation',
+    value: 'confirmation_bias',
     label: 'Confirmation Bias',
     description: 'Tendency to seek information confirming existing beliefs'
   },
@@ -49,6 +49,11 @@ const heuristics: { value: HeuristicType; label: string; description: string }[]
     value: 'sunk_cost',
     label: 'Sunk Cost Fallacy',
     description: 'Continuing commitment based on past investment'
+  },
+  {
+    value: 'availability_heuristic',
+    label: 'Availability Heuristic',
+    description: 'Overweighting easily recalled or recent information'
   }
 ];
 
@@ -61,7 +66,7 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
   const [selectedHeuristics, setSelectedHeuristics] = useState<HeuristicType[]>([
     'anchoring',
     'loss_aversion',
-    'confirmation'
+    'confirmation_bias'
   ]);
 
   useEffect(() => {

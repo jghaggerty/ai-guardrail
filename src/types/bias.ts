@@ -1,4 +1,4 @@
-export type HeuristicType = 'anchoring' | 'loss_aversion' | 'confirmation' | 'sunk_cost';
+export type HeuristicType = 'anchoring' | 'loss_aversion' | 'confirmation_bias' | 'sunk_cost' | 'availability_heuristic';
 
 export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical';
 
