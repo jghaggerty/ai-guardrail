@@ -5,9 +5,21 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { EvaluationRun } from '@/types/bias';
 import { fetchHistoricalEvaluations, loadEvaluationDetails, HistoricalEvaluation } from '@/lib/api';
-import { History, Clock, ArrowRight, AlertCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { History, Clock, ArrowRight, AlertCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -21,6 +33,7 @@ export const HistoryPanel = ({ onLoadEvaluation, filterSystem }: HistoryPanelPro
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSystem, setSelectedSystem] = useState<string>(filterSystem || 'all');
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadHistory();
@@ -56,6 +69,26 @@ export const HistoryPanel = ({ onLoadEvaluation, filterSystem }: HistoryPanelPro
       toast.error('Failed to load evaluation details');
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const handleDeleteEvaluation = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const { error } = await supabase
+        .from('evaluations')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setEvaluations(prev => prev.filter(e => e.id !== id));
+      toast.success('Analysis deleted');
+    } catch (error) {
+      console.error('Failed to delete evaluation:', error);
+      toast.error('Failed to delete analysis');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -151,20 +184,52 @@ export const HistoryPanel = ({ onLoadEvaluation, filterSystem }: HistoryPanelPro
                       )}
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleLoadEvaluation(evaluation.id)}
-                    disabled={loadingId === evaluation.id}
-                  >
-                    {loadingId === evaluation.id ? (
-                      <span className="animate-pulse">Loading...</span>
-                    ) : (
-                      <>
-                        View <ArrowRight className="w-4 h-4 ml-1" />
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleLoadEvaluation(evaluation.id)}
+                      disabled={loadingId === evaluation.id || deletingId === evaluation.id}
+                    >
+                      {loadingId === evaluation.id ? (
+                        <span className="animate-pulse">Loading...</span>
+                      ) : (
+                        <>
+                          View <ArrowRight className="w-4 h-4 ml-1" />
+                        </>
+                      )}
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          disabled={deletingId === evaluation.id}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Analysis</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete this analysis for "{evaluation.aiSystemName}"? 
+                            This will permanently remove all findings and recommendations associated with it.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteEvaluation(evaluation.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               </div>
             ))}
