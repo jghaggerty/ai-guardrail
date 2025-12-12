@@ -106,7 +106,11 @@ const Settings = () => {
             .eq('team_id', profile.team_id);
 
           if (configs) {
-            setLlmConfigs(configs);
+            // Map data to include schedule_frequency (column not yet in view)
+            setLlmConfigs(configs.map(config => ({
+              ...config,
+              schedule_frequency: (config as any).schedule_frequency || 'manual'
+            })));
           }
 
           // Fetch evaluation settings
