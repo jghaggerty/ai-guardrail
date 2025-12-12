@@ -12,6 +12,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { addDays, addWeeks, addMonths, formatDistanceToNow, isPast } from 'date-fns';
+
+// Calculate next scheduled run based on frequency and last evaluation
+function getNextScheduledRun(lastEvaluated: string | null, frequency: string | null): Date | null {
+  if (!frequency || frequency === 'manual') return null;
+  
+  const baseDate = lastEvaluated ? new Date(lastEvaluated) : new Date();
+  
+  switch (frequency) {
+    case 'daily':
+      return addDays(baseDate, 1);
+    case 'weekly':
+      return addWeeks(baseDate, 1);
+    case 'monthly':
+      return addMonths(baseDate, 1);
+    default:
+      return null;
+  }
+}
 
 interface LLMConfig {
   id: string;
@@ -659,17 +678,27 @@ const Settings = () => {
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                             <span>{config.provider} • {config.model_name}{config.model_version && ` • ${config.model_version}`}</span>
-                            {config.last_evaluated_at && (
+                            {config.last_evaluated_at ? (
                               <span className="flex items-center gap-1">
                                 <CalendarClock className="w-3 h-3" />
-                                Last evaluated: {new Date(config.last_evaluated_at).toLocaleDateString()}
+                                Last: {new Date(config.last_evaluated_at).toLocaleDateString()}
                               </span>
-                            )}
-                            {!config.last_evaluated_at && (
+                            ) : (
                               <span className="text-muted-foreground/60">Never evaluated</span>
                             )}
+                            {(() => {
+                              const nextRun = getNextScheduledRun(config.last_evaluated_at, config.schedule_frequency);
+                              if (!nextRun) return null;
+                              const isOverdue = isPast(nextRun);
+                              return (
+                                <span className={`flex items-center gap-1 ${isOverdue ? 'text-amber-500' : 'text-primary/70'}`}>
+                                  <Clock className="w-3 h-3" />
+                                  {isOverdue ? 'Overdue' : `Next: ${formatDistanceToNow(nextRun, { addSuffix: true })}`}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
