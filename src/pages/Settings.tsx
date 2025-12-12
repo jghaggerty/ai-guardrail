@@ -576,6 +576,12 @@ const Settings = () => {
                             {config.environment && (
                               <Badge variant="outline">{config.environment}</Badge>
                             )}
+                            {config.schedule_frequency && config.schedule_frequency !== 'manual' && (
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {SCHEDULE_OPTIONS.find(o => o.value === config.schedule_frequency)?.label || config.schedule_frequency}
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">
                             {config.provider} • {config.model_name}
