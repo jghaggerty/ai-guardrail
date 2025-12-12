@@ -614,7 +614,29 @@ const Settings = () => {
                         Your API key is encrypted with AES-256-GCM before storage
                       </p>
                     </div>
-                    <Button 
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <CalendarClock className="w-4 h-4" />
+                        Scheduled Testing
+                      </Label>
+                      <Select 
+                        value={llmForm.schedule_frequency} 
+                        onValueChange={(value) => setLlmForm(prev => ({ ...prev, schedule_frequency: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SCHEDULE_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically run bias evaluations on this model
+                      </p>
+                    </div>
+                    <Button
                       onClick={handleSaveLLM} 
                       className="w-full" 
                       disabled={!llmForm.display_name || !llmForm.model_name || savingApiKey}
