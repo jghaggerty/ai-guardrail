@@ -40,11 +40,13 @@ interface EvaluationSettings {
   confidence_interval: number;
 }
 
-const PROVIDERS = ['OpenAI', 'Anthropic', 'Google', 'Azure', 'AWS Bedrock', 'Custom'];
+const PROVIDERS = ['OpenAI', 'Anthropic', 'Google', 'Meta', 'DeepSeek', 'Azure', 'AWS Bedrock', 'Custom'];
 const MODELS_BY_PROVIDER: Record<string, string[]> = {
-  'OpenAI': ['gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-3.5-turbo'],
-  'Anthropic': ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'],
-  'Google': ['gemini-pro', 'gemini-ultra', 'palm-2'],
+  'OpenAI': ['gpt-5', 'gpt-4.5-preview', 'gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'],
+  'Anthropic': ['claude-opus-4-5-20251101', 'claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
+  'Google': ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'],
+  'Meta': ['llama-4-scout', 'llama-4-maverick', 'llama-3.1-405b', 'llama-3.1-70b', 'llama-3.1-8b'],
+  'DeepSeek': ['deepseek-v3', 'deepseek-r1', 'deepseek-coder'],
   'Azure': ['gpt-4', 'gpt-4-turbo', 'gpt-35-turbo'],
   'AWS Bedrock': ['anthropic.claude-3', 'amazon.titan', 'meta.llama3'],
   'Custom': []

@@ -10,14 +10,34 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Eye, EyeOff, Shield, Check, X, Loader2, AlertTriangle } from 'lucide-react';
 
 const MODEL_VERSIONS: Record<string, string[]> = {
-  'gpt-4': ['gpt-4-0613', 'gpt-4-0314', 'gpt-4-latest'],
-  'gpt-4-turbo': ['gpt-4-turbo-preview', 'gpt-4-1106-preview'],
+  // OpenAI
+  'gpt-5': ['gpt-5-latest'],
+  'gpt-4.5-preview': ['gpt-4.5-preview-2025-02-27'],
+  'gpt-4o': ['gpt-4o-2024-11-20', 'gpt-4o-2024-08-06'],
+  'gpt-4-turbo': ['gpt-4-turbo-2024-04-09', 'gpt-4-turbo-preview'],
+  'gpt-4': ['gpt-4-0613', 'gpt-4-0314'],
   'gpt-3.5-turbo': ['gpt-3.5-turbo-0125', 'gpt-3.5-turbo-1106'],
-  'claude-3-opus': ['claude-3-opus-20240229'],
-  'claude-3-sonnet': ['claude-3-sonnet-20240229'],
-  'claude-3-haiku': ['claude-3-haiku-20240307'],
+  // Anthropic
+  'claude-opus-4-5-20251101': ['claude-opus-4-5-20251101'],
+  'claude-sonnet-4-20250514': ['claude-sonnet-4-20250514'],
+  'claude-3-5-sonnet-20241022': ['claude-3-5-sonnet-20241022'],
+  'claude-3-5-haiku-20241022': ['claude-3-5-haiku-20241022'],
+  'claude-3-opus-20240229': ['claude-3-opus-20240229'],
+  // Google
+  'gemini-2.5-pro': ['gemini-2.5-pro-preview-06-05'],
+  'gemini-2.5-flash': ['gemini-2.5-flash-preview-05-20'],
+  'gemini-1.5-pro': ['gemini-1.5-pro-latest', 'gemini-1.5-pro-002'],
+  'gemini-1.5-flash': ['gemini-1.5-flash-latest', 'gemini-1.5-flash-002'],
   'gemini-pro': ['gemini-1.0-pro-latest'],
-  'gemini-1.5-pro': ['gemini-1.5-pro-latest'],
+  // Meta (Llama)
+  'llama-4-scout': ['Llama-4-Scout-17B-16E-Instruct'],
+  'llama-4-maverick': ['Llama-4-Maverick-17B-128E-Instruct-FP8'],
+  'llama-3.1-405b': ['Meta-Llama-3.1-405B-Instruct-Turbo'],
+  'llama-3.1-70b': ['Meta-Llama-3.1-70B-Instruct-Turbo'],
+  'llama-3.1-8b': ['Meta-Llama-3.1-8B-Instruct-Turbo'],
+  // DeepSeek
+  'deepseek-v3': ['deepseek-chat'],
+  'deepseek-r1': ['deepseek-reasoner'],
 };
 
 export function APIKeysStep() {

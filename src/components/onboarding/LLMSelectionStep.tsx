@@ -11,6 +11,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   'Anthropic': 'bg-orange-500/10 text-orange-600 border-orange-500/20',
   'Google': 'bg-blue-500/10 text-blue-600 border-blue-500/20',
   'Meta': 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
+  'DeepSeek': 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
   'Custom': 'bg-purple-500/10 text-purple-600 border-purple-500/20',
 };
 
