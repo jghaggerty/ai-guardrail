@@ -23,6 +23,7 @@
 - `supabase/functions/evaluate/evidence-collectors/factory.ts` - Factory function to create appropriate collector based on storage type.
 - `supabase/functions/evaluate/evidence-collectors/factory.test.ts` - Unit tests for collector factory.
 - `supabase/functions/evaluate/index.ts` - Main evaluation function (modify to integrate evidence collection).
+- `supabase/functions/evaluate/index.test.ts` - Integration tests for evaluation execution with collector mode enabled.
 - `src/pages/Settings.tsx` - Settings page (modify to add Evidence Collection configuration section).
 - `src/components/EvidenceCollectionSettings.tsx` - New component for evidence collection configuration UI.
 - `src/components/EvidenceCollectionSettings.test.tsx` - Unit tests for EvidenceCollectionSettings component.
@@ -75,21 +76,21 @@
   - [x] 3.12 Write unit tests for EvidenceCollectionSettings component testing form interactions, validation, and API calls
 
 - [ ] 4.0 Evaluation Execution Integration
-  - [ ] 4.1 Modify `supabase/functions/evaluate/index.ts` to check if collector mode is enabled for the team before starting evaluation
-  - [ ] 4.2 Add function to fetch and decrypt evidence collection configuration for the team
-  - [ ] 4.3 Create evidence collector instance using factory function when collector mode is enabled
-  - [ ] 4.4 Modify evaluation execution flow to capture raw prompts and outputs before sending to BiasLens (intercept LLM calls in test runner)
-  - [ ] 4.5 Generate unique reference IDs for evaluation run and per-test-case (format: evaluation-run-{uuid}, test-case-{testCaseId}-{iteration}-{uuid})
-  - [ ] 4.6 Implement evidence storage logic: for each test case iteration, store raw prompt and output in customer storage with reference ID, then store reference ID in BiasLens database
-  - [ ] 4.7 Modify evaluation flow to send only scores, reference IDs, and metadata to BiasLens (ensure raw outputs are never stored in BiasLens database)
-  - [ ] 4.8 Add error handling: if evidence storage fails, log error, optionally fall back to standard mode, and continue evaluation (don't block evaluation execution)
-  - [ ] 4.9 Implement batch evidence collection for large-scale evaluations (store multiple test cases in batches to avoid overwhelming storage systems)
-  - [ ] 4.10 Add async/background processing option for evidence storage to avoid slowing down evaluation execution (consider queue-based approach for high-volume scenarios)
-  - [ ] 4.11 Store evidence_reference_id and evidence_storage_type in evaluations table when collector mode is used
-  - [ ] 4.12 Store detailed per-test-case references in evidence_references table if needed for granular traceability
-  - [ ] 4.13 Add logging for all evidence collection activities for audit purposes
-  - [ ] 4.14 Handle rate limits from storage systems gracefully with exponential backoff
-  - [ ] 4.15 Write integration tests for evaluation execution with collector mode enabled, testing successful storage, error handling, and fallback behavior
+  - [x] 4.1 Modify `supabase/functions/evaluate/index.ts` to check if collector mode is enabled for the team before starting evaluation
+  - [x] 4.2 Add function to fetch and decrypt evidence collection configuration for the team
+  - [x] 4.3 Create evidence collector instance using factory function when collector mode is enabled
+  - [x] 4.4 Modify evaluation execution flow to capture raw prompts and outputs before sending to BiasLens (intercept LLM calls in test runner)
+  - [x] 4.5 Generate unique reference IDs for evaluation run and per-test-case (format: evaluation-run-{uuid}, test-case-{testCaseId}-{iteration}-{uuid})
+  - [x] 4.6 Implement evidence storage logic: for each test case iteration, store raw prompt and output in customer storage with reference ID, then store reference ID in BiasLens database
+  - [x] 4.7 Modify evaluation flow to send only scores, reference IDs, and metadata to BiasLens (ensure raw outputs are never stored in BiasLens database)
+  - [x] 4.8 Add error handling: if evidence storage fails, log error, optionally fall back to standard mode, and continue evaluation (don't block evaluation execution)
+  - [x] 4.9 Implement batch evidence collection for large-scale evaluations (store multiple test cases in batches to avoid overwhelming storage systems)
+  - [x] 4.10 Add async/background processing option for evidence storage to avoid slowing down evaluation execution (consider queue-based approach for high-volume scenarios)
+  - [x] 4.11 Store evidence_reference_id and evidence_storage_type in evaluations table when collector mode is used
+  - [x] 4.12 Store detailed per-test-case references in evidence_references table if needed for granular traceability
+  - [x] 4.13 Add logging for all evidence collection activities for audit purposes
+  - [x] 4.14 Handle rate limits from storage systems gracefully with exponential backoff
+  - [x] 4.15 Write integration tests for evaluation execution with collector mode enabled, testing successful storage, error handling, and fallback behavior
 
 - [ ] 5.0 Results Display and Reference ID Management
   - [ ] 5.1 Modify `src/types/bias.ts` to add `evidenceReferenceId` and `evidenceStorageType` fields to `EvaluationRun` interface
