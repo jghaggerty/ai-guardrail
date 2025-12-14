@@ -49,16 +49,16 @@
   - [x] 1.6 Create indexes on `evidence_collection_configs.team_id` and `evaluations.evidence_reference_id` for query performance
   - [x] 1.7 Add foreign key constraints and cascade delete rules appropriately
 
-- [ ] 2.0 Evidence Collection Storage Integrations
-  - [ ] 2.1 Create `supabase/functions/evaluate/evidence-collectors/types.ts` with TypeScript interfaces: `EvidenceCollector`, `EvidenceData`, `StorageCredentials`, `ReferenceInfo`, and storage-specific credential types (S3Credentials, SplunkCredentials, ELKCredentials)
-  - [ ] 2.2 Create `supabase/functions/evaluate/evidence-collectors/base.ts` with abstract base class `BaseEvidenceCollector` implementing common functionality (reference ID generation, error handling, retry logic)
-  - [ ] 2.3 Create `supabase/functions/evaluate/evidence-collectors/s3-collector.ts` implementing S3 storage using AWS SDK for JavaScript/TypeScript, supporting access key/secret key authentication, handling bucket/key path generation, and implementing retry logic for transient failures
-  - [ ] 2.4 Create `supabase/functions/evaluate/evidence-collectors/splunk-collector.ts` implementing Splunk storage using Splunk REST API, supporting token-based and username/password authentication, handling index/document creation, and implementing retry logic
-  - [ ] 2.5 Create `supabase/functions/evaluate/evidence-collectors/elk-collector.ts` implementing ELK/Elasticsearch storage using Elasticsearch client library, supporting API key and username/password authentication, handling index/document creation, and implementing retry logic
-  - [ ] 2.6 Create `supabase/functions/evaluate/evidence-collectors/factory.ts` with factory function that creates appropriate collector instance based on storage type from configuration
-  - [ ] 2.7 Implement credential decryption utilities (reuse pattern from `store-api-key`/`decrypt-api-key` functions) for decrypting stored credentials when creating collectors
-  - [ ] 2.8 Add error handling for rate limits, network failures, and permission errors with appropriate retry strategies and fallback mechanisms
-  - [ ] 2.9 Write unit tests for each collector class, testing successful storage, error handling, retry logic, and credential validation
+- [x] 2.0 Evidence Collection Storage Integrations
+  - [x] 2.1 Create `supabase/functions/evaluate/evidence-collectors/types.ts` with TypeScript interfaces: `EvidenceCollector`, `EvidenceData`, `StorageCredentials`, `ReferenceInfo`, and storage-specific credential types (S3Credentials, SplunkCredentials, ELKCredentials)
+  - [x] 2.2 Create `supabase/functions/evaluate/evidence-collectors/base.ts` with abstract base class `BaseEvidenceCollector` implementing common functionality (reference ID generation, error handling, retry logic)
+  - [x] 2.3 Create `supabase/functions/evaluate/evidence-collectors/s3-collector.ts` implementing S3 storage using AWS SDK for JavaScript/TypeScript, supporting access key/secret key authentication, handling bucket/key path generation, and implementing retry logic for transient failures
+  - [x] 2.4 Create `supabase/functions/evaluate/evidence-collectors/splunk-collector.ts` implementing Splunk storage using Splunk REST API, supporting token-based and username/password authentication, handling index/document creation, and implementing retry logic
+  - [x] 2.5 Create `supabase/functions/evaluate/evidence-collectors/elk-collector.ts` implementing ELK/Elasticsearch storage using Elasticsearch client library, supporting API key and username/password authentication, handling index/document creation, and implementing retry logic
+  - [x] 2.6 Create `supabase/functions/evaluate/evidence-collectors/factory.ts` with factory function that creates appropriate collector instance based on storage type from configuration
+  - [x] 2.7 Implement credential decryption utilities (reuse pattern from `store-api-key`/`decrypt-api-key` functions) for decrypting stored credentials when creating collectors
+  - [x] 2.8 Add error handling for rate limits, network failures, and permission errors with appropriate retry strategies and fallback mechanisms
+  - [x] 2.9 Write unit tests for each collector class, testing successful storage, error handling, retry logic, and credential validation
 
 - [ ] 3.0 Settings UI for Evidence Collection Configuration
   - [ ] 3.1 Create `src/components/EvidenceCollectionSettings.tsx` component with toggle switch to enable/disable collector mode, storage type selector (S3, Splunk, ELK), and conditional configuration forms
