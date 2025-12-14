@@ -9,10 +9,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock, Play, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock, Play, ExternalLink, Database } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { addDays, addWeeks, addMonths, formatDistanceToNow, isPast } from 'date-fns';
+import { EvidenceCollectionSettings } from '@/components/EvidenceCollectionSettings';
 
 // Calculate next scheduled run based on frequency and last evaluation
 function getNextScheduledRun(lastEvaluated: string | null, frequency: string | null): Date | null {
@@ -485,6 +486,10 @@ const Settings = () => {
               <TestTube className="w-4 h-4" />
               Test Suites
             </TabsTrigger>
+            <TabsTrigger value="evidence" className="flex items-center gap-2">
+              <Database className="w-4 h-4" />
+              Evidence Collection
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="models" className="space-y-6">
@@ -827,6 +832,16 @@ const Settings = () => {
                 </div>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="evidence" className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-card-foreground">Evidence Collection</h2>
+              <p className="text-sm text-muted-foreground">
+                Configure customer-side evidence storage for evaluation runs
+              </p>
+            </div>
+            <EvidenceCollectionSettings />
           </TabsContent>
         </Tabs>
       </main>

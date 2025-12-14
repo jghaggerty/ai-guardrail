@@ -381,3 +381,168 @@ export async function loadEvaluationDetails(evaluationId: string): Promise<Evalu
     baselineComparison: baselineData,
   };
 }
+
+// ============================================================================
+// EVIDENCE COLLECTION CONFIGURATION API
+// ============================================================================
+
+/**
+ * Evidence collection configuration type
+ */
+export interface EvidenceCollectionConfig {
+  id: string;
+  team_id: string;
+  storage_type: 's3' | 'splunk' | 'elk';
+  is_enabled: boolean;
+  configuration: Record<string, unknown>;
+  last_tested_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Fetch evidence collection configuration for the current user's team
+ */
+export async function fetchEvidenceCollectionConfig(): Promise<EvidenceCollectionConfig | null> {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session) {
+    throw new ApiError(401, 'Authentication required. Please sign in.');
+  }
+
+  // Get user's team ID
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('team_id')
+    .eq('id', session.user.id)
+    .single();
+
+  if (profileError || !profile?.team_id) {
+    throw new ApiError(404, 'User profile or team not found');
+  }
+
+  // Fetch evidence collection configuration
+  const { data: config, error: configError } = await supabase
+    .from('evidence_collection_configs')
+    .select('*')
+    .eq('team_id', profile.team_id)
+    .maybeSingle();
+
+  if (configError) {
+    console.error('Error fetching evidence collection config:', configError);
+    throw new ApiError(500, 'Failed to fetch evidence collection configuration');
+  }
+
+  return config as EvidenceCollectionConfig | null;
+}
+
+/**
+ * Save or update evidence collection configuration
+ */
+export async function saveEvidenceCollectionConfig(
+  config: Partial<EvidenceCollectionConfig> & {
+    storage_type: 's3' | 'splunk' | 'elk';
+    is_enabled: boolean;
+    configuration: Record<string, unknown>;
+  }
+): Promise<EvidenceCollectionConfig> {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session) {
+    throw new ApiError(401, 'Authentication required. Please sign in.');
+  }
+
+  // Get user's team ID
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('team_id')
+    .eq('id', session.user.id)
+    .single();
+
+  if (profileError || !profile?.team_id) {
+    throw new ApiError(404, 'User profile or team not found');
+  }
+
+  const configData = {
+    team_id: profile.team_id,
+    storage_type: config.storage_type,
+    is_enabled: config.is_enabled,
+    configuration: config.configuration,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (config.id) {
+    // Update existing config
+    const { data: updatedConfig, error: updateError } = await supabase
+      .from('evidence_collection_configs')
+      .update(configData)
+      .eq('id', config.id)
+      .eq('team_id', profile.team_id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating evidence collection config:', updateError);
+      throw new ApiError(500, 'Failed to update evidence collection configuration');
+    }
+
+    return updatedConfig as EvidenceCollectionConfig;
+  } else {
+    // Create new config
+    const { data: newConfig, error: createError } = await supabase
+      .from('evidence_collection_configs')
+      .insert(configData)
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating evidence collection config:', createError);
+      throw new ApiError(500, 'Failed to create evidence collection configuration');
+    }
+
+    return newConfig as EvidenceCollectionConfig;
+  }
+}
+
+/**
+ * Test connection to evidence storage system
+ */
+export async function testEvidenceConnection(configId: string): Promise<{ success: boolean; message: string }> {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  if (sessionError || !session) {
+    throw new ApiError(401, 'Authentication required. Please sign in.');
+  }
+
+  // Call the test-evidence-connection edge function
+  const { data, error } = await supabase.functions.invoke<{ success: boolean; message: string }>(
+    'test-evidence-connection',
+    {
+      body: { configId }
+    }
+  );
+
+  if (error) {
+    console.error('Error testing evidence connection:', error);
+    throw new ApiError(500, error.message || 'Failed to test evidence connection');
+  }
+
+  if (!data) {
+    throw new ApiError(500, 'No response from connection test');
+  }
+
+  // Update last_tested_at if test was successful
+  if (data.success) {
+    const { error: updateError } = await supabase
+      .from('evidence_collection_configs')
+      .update({ last_tested_at: new Date().toISOString() })
+      .eq('id', configId);
+
+    if (updateError) {
+      console.error('Error updating last_tested_at:', updateError);
+      // Don't throw - the test was successful, just the timestamp update failed
+    }
+  }
+
+  return data;
+}
