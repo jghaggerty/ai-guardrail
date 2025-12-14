@@ -424,9 +424,17 @@ export abstract class BaseEvidenceCollector implements EvidenceCollector {
       );
     }
 
-    if (typeof evidenceData.iteration !== 'number' || evidenceData.iteration < 0) {
+    if (typeof evidenceData.iteration !== 'number' || isNaN(evidenceData.iteration) || evidenceData.iteration < 0) {
       throw new EvidenceCollectorError(
         'Evidence data must include a valid iteration number',
+        this.storageType,
+        false
+      );
+    }
+
+    if (!evidenceData.timestamp || typeof evidenceData.timestamp !== 'string') {
+      throw new EvidenceCollectorError(
+        'Evidence data must include a valid timestamp string',
         this.storageType,
         false
       );
