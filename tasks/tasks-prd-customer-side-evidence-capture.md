@@ -40,7 +40,7 @@
 
 ## Tasks
 
-- [ ] 1.0 Database Schema and Migration
+- [x] 1.0 Database Schema and Migration
   - [x] 1.1 Create migration file for `evidence_collection_configs` table with columns: id, team_id, storage_type (enum: 's3', 'splunk', 'elk'), is_enabled (boolean), credentials_encrypted (text), configuration (jsonb for storage-specific settings), last_tested_at (timestamp), created_at, updated_at
   - [x] 1.2 Add `evidence_reference_id` column to `evaluations` table to store the reference ID linking to customer-stored evidence
   - [x] 1.3 Add `evidence_storage_type` column to `evaluations` table to track which storage system was used (nullable, only set when collector mode is enabled)
