@@ -60,19 +60,19 @@
   - [x] 2.8 Add error handling for rate limits, network failures, and permission errors with appropriate retry strategies and fallback mechanisms
   - [x] 2.9 Write unit tests for each collector class, testing successful storage, error handling, retry logic, and credential validation
 
-- [ ] 3.0 Settings UI for Evidence Collection Configuration
-  - [ ] 3.1 Create `src/components/EvidenceCollectionSettings.tsx` component with toggle switch to enable/disable collector mode, storage type selector (S3, Splunk, ELK), and conditional configuration forms
-  - [ ] 3.2 Implement S3 configuration form with fields: bucket name, region, access key, secret key (with show/hide toggle), and optional IAM role field
-  - [ ] 3.3 Implement Splunk configuration form with fields: endpoint URL, authentication type selector (token/username-password), token field or username/password fields based on selection, and index name
-  - [ ] 3.4 Implement ELK configuration form with fields: endpoint URL, authentication type selector (API key/username-password), API key or username/password fields, and index name
-  - [ ] 3.5 Add "Test Connection" button that calls test-evidence-connection edge function and displays success/error status with clear error messages
-  - [ ] 3.6 Add connection status indicator (connected/disconnected) that shows current configuration status
-  - [ ] 3.7 Integrate EvidenceCollectionSettings component into `src/pages/Settings.tsx` as a new tab or section within existing tabs
-  - [ ] 3.8 Add API functions in `src/lib/api.ts` for: fetching evidence collection config, saving evidence collection config, testing evidence connection
-  - [ ] 3.9 Implement form validation for required fields and format validation (e.g., URL format, bucket name format)
-  - [ ] 3.10 Add warning indicators when collector mode is enabled but not properly configured
-  - [ ] 3.11 Add option to disable collector mode if persistent connection failures occur
-  - [ ] 3.12 Write unit tests for EvidenceCollectionSettings component testing form interactions, validation, and API calls
+- [x] 3.0 Settings UI for Evidence Collection Configuration
+  - [x] 3.1 Create `src/components/EvidenceCollectionSettings.tsx` component with toggle switch to enable/disable collector mode, storage type selector (S3, Splunk, ELK), and conditional configuration forms
+  - [x] 3.2 Implement S3 configuration form with fields: bucket name, region, access key, secret key (with show/hide toggle), and optional IAM role field
+  - [x] 3.3 Implement Splunk configuration form with fields: endpoint URL, authentication type selector (token/username-password), token field or username/password fields based on selection, and index name
+  - [x] 3.4 Implement ELK configuration form with fields: endpoint URL, authentication type selector (API key/username-password), API key or username/password fields, and index name
+  - [x] 3.5 Add "Test Connection" button that calls test-evidence-connection edge function and displays success/error status with clear error messages
+  - [x] 3.6 Add connection status indicator (connected/disconnected) that shows current configuration status
+  - [x] 3.7 Integrate EvidenceCollectionSettings component into `src/pages/Settings.tsx` as a new tab or section within existing tabs
+  - [x] 3.8 Add API functions in `src/lib/api.ts` for: fetching evidence collection config, saving evidence collection config, testing evidence connection
+  - [x] 3.9 Implement form validation for required fields and format validation (e.g., URL format, bucket name format)
+  - [x] 3.10 Add warning indicators when collector mode is enabled but not properly configured
+  - [x] 3.11 Add option to disable collector mode if persistent connection failures occur
+  - [x] 3.12 Write unit tests for EvidenceCollectionSettings component testing form interactions, validation, and API calls
 
 - [ ] 4.0 Evaluation Execution Integration
   - [ ] 4.1 Modify `supabase/functions/evaluate/index.ts` to check if collector mode is enabled for the team before starting evaluation
