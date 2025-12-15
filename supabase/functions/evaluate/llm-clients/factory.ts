@@ -18,6 +18,7 @@ export function createLLMClient(
     apiKey,
     model,
     baseUrl,
+    provider,
   };
 
   switch (provider) {
