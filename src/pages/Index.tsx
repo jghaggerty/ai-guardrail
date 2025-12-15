@@ -20,12 +20,12 @@ import { runFullEvaluation, ApiError, fetchReproPack, verifyReproPackSignature, 
 import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History, X, Copy, Check, Info, Database } from 'lucide-react';
 import { toast } from 'sonner';
 
-const Index = () => {
+const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun | null } = {}) => {
   const { signOut, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const modelFilter = searchParams.get('model');
   
-  const [evaluationRun, setEvaluationRun] = useState<EvaluationRun | null>(null);
+  const [evaluationRun, setEvaluationRun] = useState<EvaluationRun | null>(initialEvaluationRun ?? null);
   const [selectedFinding, setSelectedFinding] = useState<HeuristicFinding | null>(null);
   const [viewMode, setViewMode] = useState<'technical' | 'simplified'>('technical');
   const [isRunning, setIsRunning] = useState(false);
