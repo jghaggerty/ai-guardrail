@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ChangeEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { HeuristicFinding, EvaluationRun, EvaluationConfig } from '@/types/bias';
 import { ConfigurationPanel } from '@/components/ConfigurationPanel';
 import { HeuristicCard } from '@/components/HeuristicCard';
@@ -8,6 +8,7 @@ import { RecommendationsList } from '@/components/RecommendationsList';
 import { FindingDetailsDialog } from '@/components/FindingDetailsDialog';
 import { HistoryPanel } from '@/components/HistoryPanel';
 import { ReproPackMetadata } from '@/components/ReproPackMetadata';
+import { TeamSwitcher } from '@/components/TeamSwitcher';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEvaluationProgress } from '@/hooks/useEvaluationProgress';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { runFullEvaluation, ApiError, fetchReproPack, verifyReproPackSignature, ReproPackVerificationResult } from '@/lib/api';
-import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History, X, Copy, Check, Info, Database } from 'lucide-react';
+import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History, X, Copy, Check, Info, Database, Settings, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun | null } = {}) => {
@@ -347,6 +348,7 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <TeamSwitcher className="hidden md:flex" />
               {evaluationRun && (
                 <>
                   <Button variant="outline" size="sm" onClick={handleNewAnalysis}>
@@ -363,6 +365,17 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
                   </Button>
                 </>
               )}
+              <Link to="/team">
+                <Button variant="ghost" size="sm">
+                  <Users className="w-4 h-4 mr-2" />
+                  Team
+                </Button>
+              </Link>
+              <Link to="/settings">
+                <Button variant="ghost" size="sm">
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </Link>
               <Button variant="ghost" size="sm" onClick={handleSignOut} title={user?.email}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign Out
