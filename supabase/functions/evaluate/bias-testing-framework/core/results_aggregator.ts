@@ -74,7 +74,7 @@ export class ResultsAggregator implements IResultsAggregator {
   /**
    * Aggregate a set of test results into summary statistics.
    */
-  aggregate(results: TestResult[]): AggregatedResults {
+  aggregate(results: TestResult[], iterationStats: AggregatedResults['iterationStats'] = []): AggregatedResults {
     if (results.length === 0) {
       throw new Error('Cannot aggregate empty results');
     }
@@ -114,6 +114,7 @@ export class ResultsAggregator implements IResultsAggregator {
       maxScore: calculateMax(overallScores),
       confidenceInterval95: [this.round(ci95[0]), this.round(ci95[1])],
       consistency,
+      iterationStats,
       interpretation: interpretBiasScore(meanScore, biasType),
       dimensionScores,
       rawResults: results,
