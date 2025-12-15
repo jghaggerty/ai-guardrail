@@ -173,16 +173,7 @@ const Settings = () => {
             .single();
 
           if (settings) {
-            setEvalSettings({
-              ...(settings as EvaluationSettings),
-              deterministic_enabled: settings.deterministic_enabled ?? false,
-              determinism_level: (settings.determinism_level as EvaluationSettings['determinism_level']) || 'adaptive',
-              adaptive_iterations: settings.adaptive_iterations ?? true,
-              min_iterations: settings.min_iterations ?? 3,
-              max_iterations: settings.max_iterations ?? 20,
-              stability_threshold: settings.stability_threshold ?? 0.9,
-              fixed_iterations: settings.fixed_iterations ?? 5,
-            });
+            setEvalSettings(settings as EvaluationSettings);
           }
         }
       } catch (error) {

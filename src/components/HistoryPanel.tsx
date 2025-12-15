@@ -114,7 +114,8 @@ export const HistoryPanel = ({ onLoadEvaluation, filterSystem }: HistoryPanelPro
     );
   };
 
-  const getStorageTypeLabel = (type?: EvidenceStorageType | null) => {
+  const getStorageTypeLabel = (type?: EvidenceStorageType | null): string => {
+    if (!type) return '';
     switch (type) {
       case 's3':
         return 'S3';
@@ -122,8 +123,6 @@ export const HistoryPanel = ({ onLoadEvaluation, filterSystem }: HistoryPanelPro
         return 'Splunk';
       case 'elk':
         return 'ELK';
-      default:
-        return type?.toUpperCase() || '';
     }
   };
 

@@ -36,7 +36,8 @@ const getSeverityColor = (severity: string) => {
   }
 };
 
-const getStorageTypeLabel = (type?: EvidenceStorageType) => {
+const getStorageTypeLabel = (type?: EvidenceStorageType): string => {
+  if (!type) return '';
   switch (type) {
     case 's3':
       return 'S3';
@@ -44,8 +45,6 @@ const getStorageTypeLabel = (type?: EvidenceStorageType) => {
       return 'Splunk';
     case 'elk':
       return 'ELK';
-    default:
-      return type?.toUpperCase() || '';
   }
 };
 

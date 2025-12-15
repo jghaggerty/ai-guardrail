@@ -119,7 +119,7 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
           // Fetch saved heuristic selections
           const { data: settings } = await supabase
             .from('evaluation_settings')
-            .select('selected_heuristics, deterministic_enabled, determinism_level, adaptive_iterations, min_iterations, max_iterations, stability_threshold, fixed_iterations, sample_size')
+            .select('selected_heuristics, sample_size')
             .eq('team_id', profile.team_id)
             .maybeSingle();
 
@@ -128,16 +128,6 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
           }
 
           if (settings) {
-            setDeterministicConfig({
-              enabled: settings.deterministic_enabled ?? false,
-              level: (settings.determinism_level as DeterministicConfigState['level']) || 'adaptive',
-              adaptiveIterations: settings.adaptive_iterations ?? true,
-              minIterations: settings.min_iterations ?? 3,
-              maxIterations: settings.max_iterations ?? 20,
-              stabilityThreshold: settings.stability_threshold ?? 0.9,
-              fixedIterations: settings.fixed_iterations ?? 5,
-            });
-
             if (typeof settings.sample_size === 'number') {
               setIterations(settings.sample_size);
             }
@@ -175,7 +165,6 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
         selectedHeuristics,
         iterations,
         systemName,
-        deterministic: deterministicConfig,
       });
     }
   };

@@ -5,13 +5,13 @@
  * Implements reference ID generation, error handling, and retry logic.
  */
 
-import type {
-  EvidenceCollector,
-  EvidenceData,
-  EvidenceStorageType,
-  ReferenceInfo,
+import {
+  type EvidenceCollector,
+  type EvidenceData,
+  type EvidenceStorageType,
+  type ReferenceInfo,
   EvidenceCollectorError,
-  RateLimitInfo,
+  type RateLimitInfo,
 } from './types.ts';
 
 // ============================================================================
@@ -176,8 +176,9 @@ export abstract class BaseEvidenceCollector implements EvidenceCollector {
           // For non-EvidenceCollectorError, treat as retryable by default
           if (attempt < retryConfig.maxRetries) {
             const delay = this.calculateBackoffDelay(attempt, retryConfig);
+            const errorMsg = error instanceof Error ? error.message : String(error);
             console.log(
-              `[${this.storageType}] Attempt ${attempt + 1} failed: ${error.message}. ` +
+              `[${this.storageType}] Attempt ${attempt + 1} failed: ${errorMsg}. ` +
               `Retrying in ${delay}ms...`
             );
             await this.sleep(delay);
