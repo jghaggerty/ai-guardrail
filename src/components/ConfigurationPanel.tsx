@@ -29,6 +29,16 @@ interface LLMConfig {
   is_connected: boolean;
 }
 
+interface DeterministicConfigState {
+  enabled: boolean;
+  level: 'full' | 'near' | 'adaptive';
+  adaptiveIterations: boolean;
+  minIterations?: number;
+  maxIterations?: number;
+  stabilityThreshold?: number;
+  fixedIterations?: number;
+}
+
 const heuristics: { value: HeuristicType; label: string; description: string }[] = [
   {
     value: 'anchoring',
@@ -69,6 +79,15 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
     'confirmation_bias'
   ]);
   const [teamId, setTeamId] = useState<string | null>(null);
+  const [deterministicConfig, setDeterministicConfig] = useState<DeterministicConfigState>({
+    enabled: false,
+    level: 'adaptive',
+    adaptiveIterations: true,
+    minIterations: 3,
+    maxIterations: 20,
+    stabilityThreshold: 0.9,
+    fixedIterations: 5,
+  });
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -100,12 +119,28 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
           // Fetch saved heuristic selections
           const { data: settings } = await supabase
             .from('evaluation_settings')
-            .select('selected_heuristics')
+            .select('selected_heuristics, deterministic_enabled, determinism_level, adaptive_iterations, min_iterations, max_iterations, stability_threshold, fixed_iterations, sample_size')
             .eq('team_id', profile.team_id)
             .maybeSingle();
 
           if (settings?.selected_heuristics && settings.selected_heuristics.length > 0) {
             setSelectedHeuristics(settings.selected_heuristics as HeuristicType[]);
+          }
+
+          if (settings) {
+            setDeterministicConfig({
+              enabled: settings.deterministic_enabled ?? false,
+              level: (settings.determinism_level as DeterministicConfigState['level']) || 'adaptive',
+              adaptiveIterations: settings.adaptive_iterations ?? true,
+              minIterations: settings.min_iterations ?? 3,
+              maxIterations: settings.max_iterations ?? 20,
+              stabilityThreshold: settings.stability_threshold ?? 0.9,
+              fixedIterations: settings.fixed_iterations ?? 5,
+            });
+
+            if (typeof settings.sample_size === 'number') {
+              setIterations(settings.sample_size);
+            }
           }
         }
       } catch (error) {
@@ -136,7 +171,12 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
 
   const handleStart = () => {
     if (selectedHeuristics.length > 0 && systemName) {
-      onStartEvaluation({ selectedHeuristics, iterations, systemName });
+      onStartEvaluation({
+        selectedHeuristics,
+        iterations,
+        systemName,
+        deterministic: deterministicConfig,
+      });
     }
   };
 
