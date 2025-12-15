@@ -55,6 +55,89 @@ export type Database = {
           },
         ]
       }
+      companies: {
+        Row: {
+          billing_contact_name: string | null
+          billing_email: string | null
+          company_size: string | null
+          created_at: string
+          deleted_at: string | null
+          dpa_accepted_at: string | null
+          dpa_version: string | null
+          headquarters_country: string | null
+          headquarters_state: string | null
+          id: string
+          industry: string[] | null
+          name: string
+          slug: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_contact_name?: string | null
+          billing_email?: string | null
+          company_size?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          dpa_accepted_at?: string | null
+          dpa_version?: string | null
+          headquarters_country?: string | null
+          headquarters_state?: string | null
+          id?: string
+          industry?: string[] | null
+          name: string
+          slug?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_contact_name?: string | null
+          billing_email?: string | null
+          company_size?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          dpa_accepted_at?: string | null
+          dpa_version?: string | null
+          headquarters_country?: string | null
+          headquarters_state?: string | null
+          id?: string
+          industry?: string[] | null
+          name?: string
+          slug?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      company_user_roles: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_user_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evaluation_progress: {
         Row: {
           created_at: string
@@ -331,6 +414,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          active_team_id: string | null
           created_at: string
           email_verified_at: string | null
           full_name: string | null
@@ -342,6 +426,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_team_id?: string | null
           created_at?: string
           email_verified_at?: string | null
           full_name?: string | null
@@ -353,6 +438,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_team_id?: string | null
           created_at?: string
           email_verified_at?: string | null
           full_name?: string | null
@@ -364,6 +450,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_active_team_id_fkey"
+            columns: ["active_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_team_id_fkey"
             columns: ["team_id"]
@@ -465,6 +558,7 @@ export type Database = {
         Row: {
           billing_contact_name: string | null
           billing_email: string | null
+          company_id: string | null
           company_size: string | null
           created_at: string
           dpa_accepted_at: string | null
@@ -479,6 +573,7 @@ export type Database = {
         Insert: {
           billing_contact_name?: string | null
           billing_email?: string | null
+          company_id?: string | null
           company_size?: string | null
           created_at?: string
           dpa_accepted_at?: string | null
@@ -493,6 +588,7 @@ export type Database = {
         Update: {
           billing_contact_name?: string | null
           billing_email?: string | null
+          company_id?: string | null
           company_size?: string | null
           created_at?: string
           dpa_accepted_at?: string | null
@@ -504,7 +600,15 @@ export type Database = {
           name?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "teams_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -598,7 +702,10 @@ export type Database = {
       }
     }
     Functions: {
+      get_user_active_team_id: { Args: { _user_id: string }; Returns: string }
+      get_user_company_id: { Args: { _user_id: string }; Returns: string }
       get_user_team_id: { Args: { _user_id: string }; Returns: string }
+      get_user_team_ids: { Args: { _user_id: string }; Returns: string[] }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -607,6 +714,14 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_owner: { Args: { _user_id: string }; Returns: boolean }
+      is_company_admin: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_company_member: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_owner: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
