@@ -1,14 +1,26 @@
-import { LLMClient, LLMClientConfig, LLMOptions, LLMResponse, LLMError } from './types.ts';
+import {
+  LLMClient,
+  LLMClientConfig,
+  LLMOptions,
+  LLMResponse,
+  LLMError,
+  getProviderCapabilities,
+  resolveLLMOptions,
+  logDeterminismFallback,
+} from './types.ts';
 
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 
 export class DeepSeekClient implements LLMClient {
-  provider = 'DeepSeek';
+  provider: string;
+  providerCapabilities = getProviderCapabilities('DeepSeek');
   private apiKey: string;
   private model: string;
   private baseUrl: string;
 
   constructor(config: LLMClientConfig) {
+    this.provider = config.provider || 'DeepSeek';
+    this.providerCapabilities = getProviderCapabilities(this.provider);
     this.apiKey = config.apiKey;
     this.model = config.model;
     this.baseUrl = config.baseUrl || DEFAULT_BASE_URL;
@@ -26,13 +38,18 @@ export class DeepSeekClient implements LLMClient {
   }
 
   async generateCompletion(prompt: string, options?: LLMOptions): Promise<LLMResponse> {
-    const model = this.getModelEndpoint(options?.model || this.model);
-    const maxTokens = options?.maxTokens || 1024;
-    const temperature = options?.temperature ?? 0.7;
-    const timeout = options?.timeout || 60000;
+    const resolved = resolveLLMOptions(this.providerCapabilities, options, {
+      model: this.getModelEndpoint(this.model),
+      maxTokens: 1024,
+      temperature: 0.7,
+      topP: 0.95,
+      timeout: 60000,
+    });
+
+    resolved.model = this.getModelEndpoint(resolved.model);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => controller.abort(), resolved.timeout);
 
     try {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -42,10 +59,11 @@ export class DeepSeekClient implements LLMClient {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model,
+          model: resolved.model,
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: maxTokens,
-          temperature,
+          max_tokens: resolved.maxTokens,
+          temperature: resolved.temperature,
+          top_p: resolved.topP,
         }),
         signal: controller.signal,
       });
@@ -78,6 +96,10 @@ export class DeepSeekClient implements LLMClient {
         throw new LLMError('No content in DeepSeek response', undefined, false);
       }
 
+      if (resolved.determinismMetadata.fallbackReasons?.length) {
+        logDeterminismFallback(resolved.determinismMetadata);
+      }
+
       return {
         content: choice.message.content,
         tokensUsed: data.usage ? {
@@ -86,6 +108,7 @@ export class DeepSeekClient implements LLMClient {
           total: data.usage.total_tokens,
         } : undefined,
         finishReason: choice.finish_reason,
+        metadata: { determinism: resolved.determinismMetadata },
       };
     } catch (error) {
       clearTimeout(timeoutId);
