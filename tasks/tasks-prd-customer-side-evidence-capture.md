@@ -33,6 +33,8 @@
 - `src/components/HeuristicCard.tsx` - Heuristic finding card component (modify to display reference IDs).
 - `src/pages/Index.tsx` - Main dashboard page (modify to display reference IDs in evaluation results).
 - `src/components/HistoryPanel.tsx` - History panel component (modify to show reference IDs if needed).
+- `src/components/HeuristicCard.test.tsx` - Unit tests for HeuristicCard component displaying reference IDs.
+- `src/components/HistoryPanel.test.tsx` - Unit tests for HistoryPanel component displaying reference ID indicators.
 
 ### Notes
 
@@ -92,16 +94,16 @@
   - [x] 4.14 Handle rate limits from storage systems gracefully with exponential backoff
   - [x] 4.15 Write integration tests for evaluation execution with collector mode enabled, testing successful storage, error handling, and fallback behavior
 
-- [ ] 5.0 Results Display and Reference ID Management
-  - [ ] 5.1 Modify `src/types/bias.ts` to add `evidenceReferenceId` and `evidenceStorageType` fields to `EvaluationRun` interface
-  - [ ] 5.2 Update API response types in `src/lib/api.ts` to include evidence reference information in evaluation results
-  - [ ] 5.3 Modify `src/pages/Index.tsx` to display evidence reference ID and storage type in evaluation results section (add new section or badge showing reference info)
-  - [ ] 5.4 Modify `src/components/HeuristicCard.tsx` to display reference IDs next to scores if available (show per-test-case references if stored)
-  - [ ] 5.5 Add copy-to-clipboard functionality for reference IDs (make reference IDs clickable/copyable)
-  - [ ] 5.6 Display storage location type badge (S3, Splunk, ELK) in evaluation results
-  - [ ] 5.7 Add tooltip or help text explaining what reference IDs are and how to use them to access customer-stored evidence
-  - [ ] 5.8 Update `src/components/HistoryPanel.tsx` to optionally show reference ID indicator in historical evaluations list
-  - [ ] 5.9 Ensure reference IDs are displayed consistently across all evaluation result views (heuristics tab, recommendations tab, etc.)
-  - [ ] 5.10 Add visual indicator (icon/badge) when collector mode was used for an evaluation
-  - [ ] 5.11 Write unit tests for UI components displaying reference IDs
+- [x] 5.0 Results Display and Reference ID Management
+  - [x] 5.1 Modify `src/types/bias.ts` to add `evidenceReferenceId` and `evidenceStorageType` fields to `EvaluationRun` interface
+  - [x] 5.2 Update API response types in `src/lib/api.ts` to include evidence reference information in evaluation results
+  - [x] 5.3 Modify `src/pages/Index.tsx` to display evidence reference ID and storage type in evaluation results section (add new section or badge showing reference info)
+  - [x] 5.4 Modify `src/components/HeuristicCard.tsx` to display reference IDs next to scores if available (show per-test-case references if stored)
+  - [x] 5.5 Add copy-to-clipboard functionality for reference IDs (make reference IDs clickable/copyable)
+  - [x] 5.6 Display storage location type badge (S3, Splunk, ELK) in evaluation results
+  - [x] 5.7 Add tooltip or help text explaining what reference IDs are and how to use them to access customer-stored evidence
+  - [x] 5.8 Update `src/components/HistoryPanel.tsx` to optionally show reference ID indicator in historical evaluations list
+  - [x] 5.9 Ensure reference IDs are displayed consistently across all evaluation result views (heuristics tab, recommendations tab, etc.)
+  - [x] 5.10 Add visual indicator (icon/badge) when collector mode was used for an evaluation
+  - [x] 5.11 Write unit tests for UI components displaying reference IDs
 

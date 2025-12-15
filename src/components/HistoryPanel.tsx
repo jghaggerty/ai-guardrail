@@ -19,9 +19,11 @@ import {
 import { EvaluationRun } from '@/types/bias';
 import { fetchHistoricalEvaluations, loadEvaluationDetails, HistoricalEvaluation } from '@/lib/api';
 import { supabase } from '@/integrations/supabase/client';
-import { History, Clock, ArrowRight, AlertCircle, Trash2 } from 'lucide-react';
+import { History, Clock, ArrowRight, AlertCircle, Trash2, Database } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { EvidenceStorageType } from '@/types/bias';
 
 interface HistoryPanelProps {
   onLoadEvaluation: (evaluation: EvaluationRun) => void;
@@ -112,6 +114,19 @@ export const HistoryPanel = ({ onLoadEvaluation, filterSystem }: HistoryPanelPro
     );
   };
 
+  const getStorageTypeLabel = (type?: EvidenceStorageType | null) => {
+    switch (type) {
+      case 's3':
+        return 'S3';
+      case 'splunk':
+        return 'Splunk';
+      case 'elk':
+        return 'ELK';
+      default:
+        return type?.toUpperCase() || '';
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className="p-6">
@@ -173,6 +188,30 @@ export const HistoryPanel = ({ onLoadEvaluation, filterSystem }: HistoryPanelPro
                         {evaluation.aiSystemName}
                       </span>
                       {getZoneBadge(evaluation.zoneStatus)}
+                      {evaluation.evidenceReferenceId && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge 
+                                variant="outline" 
+                                className="text-xs px-1.5 py-0.5 flex items-center gap-1 cursor-help"
+                              >
+                                <Database className="w-3 h-3" />
+                                {evaluation.evidenceStorageType ? getStorageTypeLabel(evaluation.evidenceStorageType) : 'REF'}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <div className="space-y-1">
+                                <p className="font-semibold">Evidence Reference Available</p>
+                                <p className="text-sm">
+                                  This evaluation has evidence stored in {evaluation.evidenceStorageType ? getStorageTypeLabel(evaluation.evidenceStorageType).toLowerCase() : 'your storage system'}. 
+                                  View the evaluation to access the reference ID.
+                                </p>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">

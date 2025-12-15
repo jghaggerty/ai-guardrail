@@ -4,6 +4,8 @@ export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical';
 
 export type ZoneStatus = 'green' | 'yellow' | 'red';
 
+export type EvidenceStorageType = 's3' | 'splunk' | 'elk';
+
 export interface HeuristicFinding {
   id: string;
   type: HeuristicType;
@@ -49,4 +51,6 @@ export interface EvaluationRun {
   timestamp: Date;
   overallScore: number;
   baselineComparison: BaselineData[];
+  evidenceReferenceId?: string;
+  evidenceStorageType?: EvidenceStorageType;
 }
