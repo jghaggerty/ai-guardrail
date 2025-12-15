@@ -7,6 +7,7 @@ import {
   HeuristicType,
   SeverityLevel,
   ZoneStatus,
+  EvidenceStorageType,
 } from '@/types/bias';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -21,6 +22,8 @@ interface ApiEvaluationResponse {
   completed_at: string | null;
   overall_score: number | null;
   zone_status: ZoneStatus | null;
+  evidence_reference_id?: string | null;
+  evidence_storage_type?: EvidenceStorageType | null;
 }
 
 interface ApiHeuristicFinding {
@@ -219,6 +222,8 @@ export async function runFullEvaluation(
     timestamp: new Date(data.evaluation.created_at),
     overallScore: data.evaluation.overall_score || 0,
     baselineComparison: baselineData,
+    evidenceReferenceId: data.evaluation.evidence_reference_id || undefined,
+    evidenceStorageType: data.evaluation.evidence_storage_type || undefined,
   };
 }
 
@@ -267,6 +272,8 @@ export interface HistoricalEvaluation {
   status: string;
   heuristicTypes: string[];
   iterationCount: number;
+  evidenceReferenceId?: string | null;
+  evidenceStorageType?: EvidenceStorageType | null;
 }
 
 /**
@@ -295,6 +302,8 @@ export async function fetchHistoricalEvaluations(): Promise<HistoricalEvaluation
     status: e.status,
     heuristicTypes: e.heuristic_types as string[],
     iterationCount: e.iteration_count,
+    evidenceReferenceId: e.evidence_reference_id || undefined,
+    evidenceStorageType: (e.evidence_storage_type as EvidenceStorageType | null) || undefined,
   }));
 }
 
@@ -379,6 +388,8 @@ export async function loadEvaluationDetails(evaluationId: string): Promise<Evalu
     timestamp: new Date(evaluation.created_at),
     overallScore: evaluation.overall_score || 0,
     baselineComparison: baselineData,
+    evidenceReferenceId: evaluation.evidence_reference_id || undefined,
+    evidenceStorageType: (evaluation.evidence_storage_type as EvidenceStorageType | null) || undefined,
   };
 }
 
