@@ -29,6 +29,7 @@ const Index = () => {
   const [selectedFinding, setSelectedFinding] = useState<HeuristicFinding | null>(null);
   const [viewMode, setViewMode] = useState<'technical' | 'simplified'>('technical');
   const [isRunning, setIsRunning] = useState(false);
+  const [activeConfig, setActiveConfig] = useState<EvaluationConfig | null>(null);
   const [copiedReferenceId, setCopiedReferenceId] = useState(false);
   const [isDownloadingReproPack, setIsDownloadingReproPack] = useState(false);
   const [isVerifyingSignature, setIsVerifyingSignature] = useState(false);
@@ -38,6 +39,59 @@ const Index = () => {
 
   const clearModelFilter = () => {
     setSearchParams({});
+  };
+
+  const resolveDeterminismMeta = (run?: EvaluationRun | null) => {
+    const mode = (run?.determinismMode || run?.config?.deterministic?.level || '').toString().toLowerCase();
+    const deterministicEnabled = run?.config?.deterministic?.enabled;
+
+    if (mode.includes('near')) {
+      return {
+        label: 'Near-Deterministic',
+        description: 'Stability via repeated passes and averaging with fixed parameters.',
+      };
+    }
+
+    if (mode.includes('full') || mode.includes('deterministic') || deterministicEnabled) {
+      return {
+        label: 'Deterministic',
+        description: 'Uses provider seeding and fixed parameters for full reproducibility.',
+      };
+    }
+
+    return {
+      label: 'Non-Deterministic',
+      description: 'Standard stochastic sampling without deterministic controls.',
+    };
+  };
+
+  const getOverallConfidenceRange = (intervals?: unknown) => {
+    if (!intervals) return null;
+
+    const ci = intervals as Record<string, unknown>;
+    const overall = (ci.overall || ci.overall_score || ci.score) as unknown;
+
+    if (Array.isArray(overall) && overall.length >= 2 &&
+      typeof overall[0] === 'number' && typeof overall[1] === 'number') {
+      return { lower: overall[0], upper: overall[1] };
+    }
+
+    if (overall && typeof overall === 'object') {
+      const lower = (overall as { lower?: number; low?: number; l?: number; min?: number }).lower
+        ?? (overall as { lower?: number; low?: number; l?: number; min?: number }).low
+        ?? (overall as { lower?: number; low?: number; l?: number; min?: number }).l
+        ?? (overall as { lower?: number; low?: number; l?: number; min?: number }).min;
+      const upper = (overall as { upper?: number; high?: number; u?: number; max?: number }).upper
+        ?? (overall as { upper?: number; high?: number; u?: number; max?: number }).high
+        ?? (overall as { upper?: number; high?: number; u?: number; max?: number }).u
+        ?? (overall as { upper?: number; high?: number; u?: number; max?: number }).max;
+
+      if (typeof lower === 'number' && typeof upper === 'number') {
+        return { lower, upper };
+      }
+    }
+
+    return null;
   };
 
   useEffect(() => {
@@ -67,6 +121,7 @@ const Index = () => {
 
   const handleStartEvaluation = async (config: EvaluationConfig) => {
     setIsRunning(true);
+    setActiveConfig(config);
     resetProgress();
 
     toast.info('Starting diagnostic analysis...');
@@ -89,6 +144,7 @@ const Index = () => {
     } finally {
       setIsRunning(false);
       resetProgress();
+      setActiveConfig(null);
     }
   };
 
@@ -107,6 +163,7 @@ const Index = () => {
     resetProgress();
     setVerificationResult(null);
     setUploadedPackName(null);
+    setActiveConfig(null);
   };
 
   const handleCopyReferenceId = async (referenceId: string) => {
@@ -258,6 +315,10 @@ const Index = () => {
 
   // Display progress - use realtime when available, fallback to API progress
   const displayProgress = isRunning ? (progressPercent > 0 ? progressPercent : 5) : 0;
+  const iterationProgress = testsTotal > 0 ? Math.round((testsCompleted / testsTotal) * 100) : 0;
+  const determinismMeta = resolveDeterminismMeta(evaluationRun || (activeConfig ? { config: activeConfig } as EvaluationRun : null));
+  const overallConfidence = getOverallConfidenceRange(evaluationRun?.confidenceIntervals);
+  const iterationsDisplayed = evaluationRun?.iterationsRun || evaluationRun?.config?.iterations;
 
   return (
     <div className="min-h-screen bg-background">
@@ -345,6 +406,50 @@ const Index = () => {
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 Live updates enabled
               </p>
+            )}
+            {(testsTotal > 0 || activeConfig?.deterministic?.enabled || (activeConfig?.iterations ?? 0) > 1) && (
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-card-foreground">Iteration sweep</p>
+                    {testsTotal > 0 && (
+                      <span className="text-xs text-muted-foreground">{testsCompleted}/{testsTotal} passes</span>
+                    )}
+                  </div>
+                  <Progress value={testsTotal > 0 ? iterationProgress : displayProgress} className="h-2" />
+                  <p className="text-xs text-muted-foreground">
+                    Stabilizing scores across multiple runs for consistent results.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">{determinismMeta.label}</Badge>
+                      {activeConfig?.deterministic?.enabled && activeConfig.deterministic.fixedIterations && (
+                        <Badge variant="outline" className="text-xs">
+                          {activeConfig.deterministic.fixedIterations} fixed iterations
+                        </Badge>
+                      )}
+                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-4 h-4 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-sm font-semibold">Multi-iteration evaluation</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {determinismMeta.description} Progress reflects repeated passes to shrink confidence ranges.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Adaptive iterations continue until stability thresholds are met.
+                  </p>
+                </div>
+              </div>
             )}
           </Card>
         )}
@@ -506,11 +611,56 @@ const Index = () => {
                       System: {evaluationRun.config.systemName} • {evaluationRun.findings.length} findings
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Overall Score</p>
-                    <p className="text-3xl font-bold text-card-foreground">
-                      {evaluationRun.overallScore.toFixed(1)}
-                    </p>
+                  <div className="text-right space-y-2">
+                    <div className="flex items-center justify-end gap-2">
+                      <p className="text-sm text-muted-foreground">Overall Score</p>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="secondary" className="text-xs cursor-help">
+                              {determinismMeta.label}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-sm font-semibold">{determinismMeta.label} mode</p>
+                            <p className="text-xs text-muted-foreground mt-1">{determinismMeta.description}</p>
+                            {evaluationRun.seedValue !== undefined && (
+                              <p className="text-xs text-muted-foreground mt-2">Seed: {evaluationRun.seedValue}</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="flex items-center justify-end gap-3">
+                      <p className="text-3xl font-bold text-card-foreground">
+                        {evaluationRun.overallScore.toFixed(1)}
+                      </p>
+                      {overallConfidence && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="text-xs cursor-help">
+                                CI: {overallConfidence.lower.toFixed(1)}–{overallConfidence.upper.toFixed(1)}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p className="text-sm font-semibold">Confidence interval</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Reported score includes error bounds from multi-iteration sampling.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
+                      {iterationsDisplayed && (
+                        <Badge variant="outline" className="text-[11px]">Iterations: {iterationsDisplayed}</Badge>
+                      )}
+                      {evaluationRun.seedValue !== undefined && (
+                        <Badge variant="outline" className="text-[11px]">Seed: {evaluationRun.seedValue}</Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
               </Card>
