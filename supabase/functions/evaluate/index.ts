@@ -13,6 +13,7 @@ import {
   calculateMean,
   calculateStdDeviation,
   calculateConfidenceInterval95,
+  FRAMEWORK_VERSION,
 } from './bias-testing-framework/index.ts'
 
 import type {
@@ -68,6 +69,15 @@ interface HeuristicFindingResult {
   mean_bias_score?: number
   std_deviation?: number
   confidence_interval?: [number, number]
+}
+
+interface ReproCaptureEntry {
+  testCaseId: string
+  iteration: number
+  heuristicType: HeuristicType
+  referenceId: string
+  outputHash: string
+  capturedAt: string
 }
 
 // Calculation utilities
@@ -137,6 +147,63 @@ function calculateOverallScore(findings: HeuristicFindingResult[]): number {
   return totalWeight > 0 ? totalWeightedScore / totalWeight : 75
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(value)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function bufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  return btoa(binary)
+}
+
+async function importSigningKey(pem: string): Promise<CryptoKey> {
+  const trimmed = pem
+    .replace(/-----BEGIN ([A-Z ]+)-----/g, '')
+    .replace(/-----END ([A-Z ]+)-----/g, '')
+    .replace(/\s+/g, '')
+
+  const binaryDerString = atob(trimmed)
+  const binaryDer = new Uint8Array(binaryDerString.length)
+  for (let i = 0; i < binaryDerString.length; i++) {
+    binaryDer[i] = binaryDerString.charCodeAt(i)
+  }
+
+  return crypto.subtle.importKey(
+    'pkcs8',
+    binaryDer,
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      hash: 'SHA-256',
+    },
+    false,
+    ['sign']
+  )
+}
+
+async function signHash(privateKeyPem: string, contentHash: string): Promise<string> {
+  const key = await importSigningKey(privateKeyPem)
+  const encoder = new TextEncoder()
+  const signatureBuffer = await crypto.subtle.sign(
+    { name: 'RSASSA-PKCS1-v1_5' },
+    key,
+    encoder.encode(contentHash)
+  )
+
+  return bufferToBase64(signatureBuffer)
+}
+
+function truncateHash(hash: string, length: number = 12): string {
+  return hash.slice(0, length)
+}
+
 // Map framework bias types to legacy heuristic types
 function mapBiasTypeToHeuristic(biasType: BiasType): HeuristicType {
   const mapping: Record<BiasType, HeuristicType> = {
@@ -186,7 +253,8 @@ function generateExampleInstances(testCases: TestCase[], iterations: number): st
 async function detectAnchoringBias(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
-  evaluationRunId?: string
+  evaluationRunId?: string,
+  reproCapture?: ReproCaptureEntry[]
 ): Promise<HeuristicFindingResult> {
   const testCases = anchoringTestCases
   const testCaseCount = testCases.length
@@ -221,7 +289,19 @@ async function detectAnchoringBias(
     
     // Generate response (mock for now, but this is where real LLM calls would go)
     const output = await runner.generateMockResponse(testCase, iteration)
-    
+    const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
+
+    if (reproCapture) {
+      reproCapture.push({
+        testCaseId: testCase.id,
+        iteration,
+        heuristicType: 'anchoring',
+        referenceId,
+        outputHash: await sha256Hex(output),
+        capturedAt: new Date().toISOString(),
+      })
+    }
+
     // Capture evidence if evidence collection is enabled
     if (evidenceCapture && evaluationRunId) {
       evidenceCapture.push(
@@ -230,7 +310,8 @@ async function detectAnchoringBias(
           output,
           testCase.id,
           iteration,
-          'anchoring'
+          'anchoring',
+          referenceId
         )
       )
     }
@@ -271,7 +352,8 @@ async function detectAnchoringBias(
 async function detectLossAversion(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
-  evaluationRunId?: string
+  evaluationRunId?: string,
+  reproCapture?: ReproCaptureEntry[]
 ): Promise<HeuristicFindingResult> {
   const testCases = lossAversionTestCases
   const testCaseCount = testCases.length
@@ -305,6 +387,18 @@ async function detectLossAversion(
 
     // Generate response (mock for now, but this is where real LLM calls would go)
     const output = await runner.generateMockResponse(testCase, iteration)
+    const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
+
+    if (reproCapture) {
+      reproCapture.push({
+        testCaseId: testCase.id,
+        iteration,
+        heuristicType: 'loss_aversion',
+        referenceId,
+        outputHash: await sha256Hex(output),
+        capturedAt: new Date().toISOString(),
+      })
+    }
 
     // Capture evidence if evidence collection is enabled
     if (evidenceCapture && evaluationRunId) {
@@ -314,7 +408,8 @@ async function detectLossAversion(
           output,
           testCase.id,
           iteration,
-          'loss_aversion'
+          'loss_aversion',
+          referenceId
         )
       )
     }
@@ -356,7 +451,8 @@ async function detectLossAversion(
 async function detectConfirmationBias(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
-  evaluationRunId?: string
+  evaluationRunId?: string,
+  reproCapture?: ReproCaptureEntry[]
 ): Promise<HeuristicFindingResult> {
   const testCases = confirmationBiasTestCases
   const testCaseCount = testCases.length
@@ -384,10 +480,22 @@ async function detectConfirmationBias(
     )
     const promptText = promptForIteration?.prompt || testCase.prompt
     const output = await runner.generateMockResponse(testCase, iteration)
+    const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
+
+    if (reproCapture) {
+      reproCapture.push({
+        testCaseId: testCase.id,
+        iteration,
+        heuristicType: 'confirmation_bias',
+        referenceId,
+        outputHash: await sha256Hex(output),
+        capturedAt: new Date().toISOString(),
+      })
+    }
 
     if (evidenceCapture && evaluationRunId) {
       evidenceCapture.push(
-        captureEvidence(promptText, output, testCase.id, iteration, 'confirmation_bias')
+        captureEvidence(promptText, output, testCase.id, iteration, 'confirmation_bias', referenceId)
       )
     }
 
@@ -427,7 +535,8 @@ async function detectConfirmationBias(
 async function detectSunkCostFallacy(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
-  evaluationRunId?: string
+  evaluationRunId?: string,
+  reproCapture?: ReproCaptureEntry[]
 ): Promise<HeuristicFindingResult> {
   const testCases = sunkCostTestCases
   const testCaseCount = testCases.length
@@ -455,10 +564,22 @@ async function detectSunkCostFallacy(
     )
     const promptText = promptForIteration?.prompt || testCase.prompt
     const output = await runner.generateMockResponse(testCase, iteration)
+    const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
+
+    if (reproCapture) {
+      reproCapture.push({
+        testCaseId: testCase.id,
+        iteration,
+        heuristicType: 'sunk_cost',
+        referenceId,
+        outputHash: await sha256Hex(output),
+        capturedAt: new Date().toISOString(),
+      })
+    }
 
     if (evidenceCapture && evaluationRunId) {
       evidenceCapture.push(
-        captureEvidence(promptText, output, testCase.id, iteration, 'sunk_cost')
+        captureEvidence(promptText, output, testCase.id, iteration, 'sunk_cost', referenceId)
       )
     }
 
@@ -498,7 +619,8 @@ async function detectSunkCostFallacy(
 async function detectAvailabilityHeuristic(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
-  evaluationRunId?: string
+  evaluationRunId?: string,
+  reproCapture?: ReproCaptureEntry[]
 ): Promise<HeuristicFindingResult> {
   const testCases = availabilityHeuristicTestCases
   const testCaseCount = testCases.length
@@ -526,10 +648,22 @@ async function detectAvailabilityHeuristic(
     )
     const promptText = promptForIteration?.prompt || testCase.prompt
     const output = await runner.generateMockResponse(testCase, iteration)
+    const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
+
+    if (reproCapture) {
+      reproCapture.push({
+        testCaseId: testCase.id,
+        iteration,
+        heuristicType: 'availability_heuristic',
+        referenceId,
+        outputHash: await sha256Hex(output),
+        capturedAt: new Date().toISOString(),
+      })
+    }
 
     if (evidenceCapture && evaluationRunId) {
       evidenceCapture.push(
-        captureEvidence(promptText, output, testCase.id, iteration, 'availability_heuristic')
+        captureEvidence(promptText, output, testCase.id, iteration, 'availability_heuristic', referenceId)
       )
     }
 
@@ -570,12 +704,14 @@ async function runDetection(
   heuristicTypes: HeuristicType[],
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
-  evaluationRunId?: string
+  evaluationRunId?: string,
+  reproCapture?: ReproCaptureEntry[]
 ): Promise<HeuristicFindingResult[]> {
   const detectors: Record<HeuristicType, (
     iterations: number,
     evidenceCapture?: CapturedEvidence[],
-    evaluationRunId?: string
+    evaluationRunId?: string,
+    reproCapture?: ReproCaptureEntry[]
   ) => Promise<HeuristicFindingResult>> = {
     anchoring: detectAnchoringBias,
     loss_aversion: detectLossAversion,
@@ -586,7 +722,7 @@ async function runDetection(
 
   const results: HeuristicFindingResult[] = []
   for (const type of heuristicTypes) {
-    const result = await detectors[type](iterations, evidenceCapture, evaluationRunId)
+    const result = await detectors[type](iterations, evidenceCapture, evaluationRunId, reproCapture)
     results.push(result)
   }
   return results
@@ -877,7 +1013,8 @@ function captureEvidence(
   output: string,
   testCaseId: string,
   iteration: number,
-  heuristicType: HeuristicType
+  heuristicType: HeuristicType,
+  referenceId?: string
 ): CapturedEvidence {
   return {
     prompt,
@@ -886,7 +1023,7 @@ function captureEvidence(
     iteration,
     timestamp: new Date().toISOString(),
     heuristicType,
-    referenceId: generateTestCaseReferenceId(testCaseId, iteration),
+    referenceId: referenceId ?? generateTestCaseReferenceId(testCaseId, iteration),
   }
 }
 
@@ -1089,8 +1226,10 @@ Deno.serve(async (req) => {
     // POST /evaluate - Run full evaluation
     if (req.method === 'POST' && (path === '' || path === '/')) {
       const body: EvaluationRequest = await req.json()
-      
+
       console.log('Creating evaluation for:', body.ai_system_name)
+
+      const evaluationStartedAt = new Date().toISOString()
 
       // Fetch and decrypt evidence collection configuration if collector mode is enabled
       // Error handling: If any step fails, fall back to standard mode and continue evaluation
@@ -1264,6 +1403,9 @@ Deno.serve(async (req) => {
       // Initialize evidence capture array if collector mode is enabled
       const capturedEvidence: CapturedEvidence[] = []
       const evaluationRunId = evaluation.id
+
+      // Capture repro pack metadata without storing raw prompts/outputs
+      const reproCaptureEntries: ReproCaptureEntry[] = []
       
       // Generate evaluation run reference ID (format: evaluation-run-{uuid})
       const evaluationRunReferenceId = evidenceCollector 
@@ -1310,7 +1452,8 @@ Deno.serve(async (req) => {
         const detectors: Record<HeuristicType, (
           iterations: number,
           evidenceCapture?: CapturedEvidence[],
-          evaluationRunId?: string
+          evaluationRunId?: string,
+          reproCapture?: ReproCaptureEntry[]
         ) => Promise<HeuristicFindingResult>> = {
           anchoring: detectAnchoringBias,
           loss_aversion: detectLossAversion,
@@ -1323,7 +1466,8 @@ Deno.serve(async (req) => {
         const finding = await detectors[heuristicType](
           body.iteration_count,
           evidenceCollector ? capturedEvidence : undefined,
-          evaluationRunId
+          evaluationRunId,
+          reproCaptureEntries
         )
         findings.push(finding)
         
@@ -2151,6 +2295,8 @@ Deno.serve(async (req) => {
       // Calculate overall score
       const overallScore = calculateOverallScore(findings)
       const zoneStatus = calculateZoneStatus(overallScore)
+      const aggregationTimestamp = new Date().toISOString()
+      const completionTimestamp = new Date().toISOString()
 
       // Insert findings
       // IMPORTANT: Only store scores, reference IDs, and metadata - NEVER store raw prompts or outputs
@@ -2212,7 +2358,7 @@ Deno.serve(async (req) => {
         status: 'completed',
         overall_score: overallScore,
         zone_status: zoneStatus,
-        completed_at: new Date().toISOString(),
+        completed_at: completionTimestamp,
       }
       
       // Add evidence reference ID and storage type if collector mode was used and evidence was stored
@@ -2271,6 +2417,79 @@ Deno.serve(async (req) => {
         .eq('evaluation_id', evaluation.id)
         .order('priority', { ascending: false })
 
+      const evidenceReferenceId = evaluationUpdate.evidence_reference_id
+        ?? evaluation.evidence_reference_id
+        ?? null
+
+      const reproPackContent = {
+        schema_version: '1.0.0',
+        evaluation_run_id: evaluation.id,
+        detector_version: FRAMEWORK_VERSION,
+        timestamps: {
+          started_at: evaluationStartedAt,
+          aggregated_at: aggregationTimestamp,
+          completed_at: completionTimestamp,
+        },
+        model_configuration: {
+          ai_system_name: body.ai_system_name,
+          heuristic_types: body.heuristic_types,
+          iteration_count: body.iteration_count,
+        },
+        test_suite: {
+          heuristics: body.heuristic_types,
+          iterations: body.iteration_count,
+        },
+        prompt_set: reproCaptureEntries.map(entry => ({
+          prompt_reference_id: entry.referenceId,
+          test_case_id: entry.testCaseId,
+          iteration: entry.iteration,
+          heuristic_type: entry.heuristicType,
+          captured_at: entry.capturedAt,
+        })),
+        output_hashes: reproCaptureEntries.map(entry => ({
+          prompt_reference_id: entry.referenceId,
+          test_case_id: entry.testCaseId,
+          iteration: entry.iteration,
+          sha256: entry.outputHash,
+        })),
+        aggregate_metrics: {
+          overall_score: overallScore,
+          zone_status: zoneStatus,
+        },
+        evidence_reference_id: evidenceReferenceId,
+      }
+
+      const serializedReproPack = JSON.stringify(reproPackContent)
+      const contentHash = await sha256Hex(serializedReproPack)
+      const signingKeyPem = Deno.env.get('REPRO_PACK_SIGNING_PRIVATE_KEY')
+      const signingKeyId = Deno.env.get('REPRO_PACK_SIGNING_KEY_ID') || 'default'
+      const signingAuthority = Deno.env.get('REPRO_PACK_SIGNING_AUTHORITY') || 'BiasLens'
+
+      if (!signingKeyPem) {
+        throw new Error('Repro pack signing key not configured')
+      }
+
+      const signature = await signHash(signingKeyPem, contentHash)
+
+      const { data: reproPackRecord, error: reproPackError } = await supabase
+        .from('repro_packs')
+        .insert({
+          evaluation_run_id: evaluation.id,
+          content_hash: contentHash,
+          signature,
+          signing_authority: signingAuthority,
+          signing_key_id: signingKeyId,
+          created_at: completionTimestamp,
+          repro_pack_content: reproPackContent,
+        })
+        .select()
+        .single()
+
+      if (reproPackError) {
+        console.error('Failed to insert repro pack:', reproPackError)
+        throw new Error('Failed to persist repro pack for evaluation run')
+      }
+
       // Update progress: complete
       await updateProgress(100, 'completed', null, totalHeuristics, 'Evaluation complete!')
 
@@ -2306,6 +2525,8 @@ Deno.serve(async (req) => {
           drift_alert: boolean
           drift_message: string | null
         }
+        repro_pack_id?: string
+        repro_pack_hash?: string
       } = {
         evaluation: {
           id: evaluation.id,
@@ -2314,7 +2535,7 @@ Deno.serve(async (req) => {
           iteration_count: body.iteration_count,
           status: 'completed',
           created_at: evaluation.created_at,
-          completed_at: new Date().toISOString(),
+          completed_at: completionTimestamp,
           overall_score: overallScore,
           zone_status: zoneStatus,
         },
@@ -2326,6 +2547,11 @@ Deno.serve(async (req) => {
           drift_alert: hasDrift,
           drift_message: driftMessage,
         },
+      }
+
+      if (reproPackRecord) {
+        responseData.repro_pack_id = reproPackRecord.id
+        responseData.repro_pack_hash = truncateHash(contentHash)
       }
       
       // Add evidence storage status if async processing is enabled
