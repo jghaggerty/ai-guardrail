@@ -44,14 +44,29 @@ export function ReproPackMetadata({
   const evidenceId = verificationResult?.customerEvidenceId || evidenceReferenceId;
   const evidenceUrl = verificationResult?.evidenceUrl;
   const verificationOrigin = verificationResult?.verificationSource ?? verificationSource ?? null;
-  const replayInstructions = verificationResult?.replayInstructions as
-    | {
-        test_suite?: { cases?: Array<{ id: string; heuristic_type?: string; version?: string }>; iterations?: number };
-        model?: { provider?: string; model_name?: string; sampling_parameters?: Record<string, unknown> };
-        detector?: { version?: string; heuristics?: string[] };
-        evidence?: { reference_id?: string; storage_type?: string; link_hint?: string };
-      }
-    | undefined;
+  type ReplayInstructions = {
+    test_suite?: {
+      cases?: Array<{ id: string; heuristic_type?: string; version?: string }>;
+      iterations?: number;
+      iterations_run?: number;
+    };
+    model?: {
+      provider?: string;
+      model_name?: string;
+      sampling_parameters?: Record<string, unknown>;
+      determinism?: { mode?: string; seed?: number; achieved_level?: string };
+    };
+    detector?: { version?: string; heuristics?: string[] };
+    evidence?: { reference_id?: string; storage_type?: string; link_hint?: string };
+    metrics?: { confidence_intervals?: { overall_score?: [number, number]; heuristics?: Record<string, unknown> } };
+  };
+
+  const replayInstructions = verificationResult?.replayInstructions as ReplayInstructions | undefined;
+  const iterationsRun = replayInstructions?.test_suite?.iterations_run;
+  const determinism = replayInstructions?.model?.determinism;
+  const overallConfidenceInterval = Array.isArray(replayInstructions?.metrics?.confidence_intervals?.overall_score)
+    ? replayInstructions?.metrics?.confidence_intervals?.overall_score
+    : undefined;
 
   return (
     <Card className="p-4 border-dashed border-primary/30 bg-primary/5">
@@ -206,9 +221,29 @@ export function ReproPackMetadata({
                         {replayInstructions.test_suite.iterations} iterations
                       </Badge>
                     )}
+                    {typeof iterationsRun === 'number' && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {iterationsRun} iterations run
+                      </Badge>
+                    )}
                     {replayInstructions.model?.model_name && (
                       <Badge variant="outline" className="text-[10px]">
                         Model {replayInstructions.model.model_name}
+                      </Badge>
+                    )}
+                    {determinism?.mode && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Determinism: {determinism.mode}
+                      </Badge>
+                    )}
+                    {typeof determinism?.seed === 'number' && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Seed {determinism.seed}
+                      </Badge>
+                    )}
+                    {determinism?.achieved_level && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Achieved {determinism.achieved_level}
                       </Badge>
                     )}
                   </div>
@@ -222,6 +257,11 @@ export function ReproPackMetadata({
                       Sampling: {Object.entries(replayInstructions.model.sampling_parameters)
                         .map(([key, value]) => `${key}=${value}`)
                         .join(', ')}
+                    </p>
+                  )}
+                  {overallConfidenceInterval && (
+                    <p className="text-[11px] text-muted-foreground">
+                      CI (overall score): {overallConfidenceInterval.map(value => `${value}`).join(' – ')}
                     </p>
                   )}
                   {replayInstructions.evidence?.reference_id && (

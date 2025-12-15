@@ -336,7 +336,13 @@ function calculateOverallScore(findings: HeuristicFindingResult[]): number {
 function buildReplayInstructions(params: {
   heuristicTypes: HeuristicType[]
   iterationCount: number
+  iterationsRun: number
   detectorVersion: string
+  determinismMode: string
+  seedValue: number
+  achievedLevel?: string
+  samplingParameters: Record<string, number | undefined>
+  confidenceIntervals?: Record<string, unknown>
   evidenceReferenceId?: string | null
   evidenceStorageType?: string | null
   replayEntries: ReproCaptureEntry[]
@@ -357,14 +363,16 @@ function buildReplayInstructions(params: {
         heuristic_type: heuristic,
       })),
       iterations: params.iterationCount,
+      iterations_run: params.iterationsRun,
     },
     model: {
       provider: DEFAULT_MODEL_CONFIG.provider,
       model_name: DEFAULT_MODEL_CONFIG.modelName,
-      sampling_parameters: {
-        temperature: DEFAULT_MODEL_CONFIG.sampling.temperature,
-        top_p: DEFAULT_MODEL_CONFIG.sampling.topP,
-        max_tokens: DEFAULT_MODEL_CONFIG.sampling.maxTokens,
+      sampling_parameters: params.samplingParameters,
+      determinism: {
+        mode: params.determinismMode,
+        seed: params.seedValue,
+        achieved_level: params.achievedLevel,
       },
     },
     detector: {
@@ -377,6 +385,11 @@ function buildReplayInstructions(params: {
           storage_type: params.evidenceStorageType,
           link_hint:
             'Use the reference ID to fetch prompts and outputs from your configured evidence store.',
+        }
+      : undefined,
+    metrics: params.confidenceIntervals
+      ? {
+          confidence_intervals: params.confidenceIntervals,
         }
       : undefined,
     replay_steps: [
@@ -1631,6 +1644,7 @@ Deno.serve(async (req) => {
         temperature: DEFAULT_MODEL_CONFIG.sampling.temperature,
         top_p: DEFAULT_MODEL_CONFIG.sampling.topP,
         top_k: requestedTopK,
+        max_tokens: DEFAULT_MODEL_CONFIG.sampling.maxTokens,
       }
 
       if (body.deterministic?.enabled && providerPolicy.determinismSupport === 'none') {
@@ -2551,8 +2565,11 @@ Deno.serve(async (req) => {
                         `[Async] Rate limit encountered. Adaptive backoff: inter-batch delay increased to ${interBatchDelay}ms`
                       )
                     }
+                  } else {
+                    // Reset consecutive rate limit errors if error is not rate limit related
+                    consecutiveRateLimitErrors = 0
                   }
-                  
+
                   // Audit log: Individual evidence storage failure (async mode)
                   auditLog({
                     event: 'evidence_storage_failed',
@@ -2567,14 +2584,11 @@ Deno.serve(async (req) => {
                     error: errorMessage,
                     metadata: {
                       processingMode: 'asynchronous',
-                      rateLimitEncountered: storageError instanceof EvidenceCollectorError && 
+                      rateLimitEncountered: storageError instanceof EvidenceCollectorError &&
                         (storageError.statusCode === 429 || storageError.rateLimitInfo !== undefined),
                       adaptiveDelay: interBatchDelay,
                     },
                   })
-                } else {
-                  // Reset consecutive rate limit errors if error is not rate limit related
-                  consecutiveRateLimitErrors = 0
                 }
                 
                 // Small delay between entries to avoid overwhelming storage
@@ -2915,8 +2929,10 @@ Deno.serve(async (req) => {
 
       const signingMaterial = await resolveSigningMaterial(supabase, teamId)
 
+      const iterationsRun = evaluation.iterations_run ?? body.iteration_count
+
       const reproPackContent = {
-        schema_version: '1.1.0',
+        schema_version: '1.2.0',
         evaluation_run_id: evaluation.id,
         detector_version: FRAMEWORK_VERSION,
         timestamps: {
@@ -2928,10 +2944,15 @@ Deno.serve(async (req) => {
           ai_system_name: body.ai_system_name,
           heuristic_types: body.heuristic_types,
           iteration_count: body.iteration_count,
+          iterations_run: iterationsRun,
+          determinism_mode: determinismMode,
+          seed_value: seedValue,
+          decoding_parameters: parametersUsed,
         },
         test_suite: {
           heuristics: body.heuristic_types,
           iterations: body.iteration_count,
+          iterations_run: iterationsRun,
         },
         prompt_set: reproCaptureEntries.map(entry => ({
           prompt_reference_id: entry.referenceId,
@@ -2949,12 +2970,19 @@ Deno.serve(async (req) => {
         aggregate_metrics: {
           overall_score: overallScore,
           zone_status: zoneStatus,
+          confidence_intervals: confidenceIntervals,
         },
         evidence_reference_id: evidenceReferenceId,
         replay_instructions: buildReplayInstructions({
           heuristicTypes: body.heuristic_types,
           iterationCount: body.iteration_count,
+          iterationsRun,
           detectorVersion: FRAMEWORK_VERSION,
+          determinismMode,
+          seedValue,
+          achievedLevel,
+          samplingParameters: parametersUsed,
+          confidenceIntervals,
           evidenceReferenceId,
           evidenceStorageType: evidenceConfig?.storageType,
           replayEntries: reproCaptureEntries,
