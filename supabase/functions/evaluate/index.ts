@@ -38,6 +38,7 @@ import {
 import { createEvidenceCollector } from './evidence-collectors/factory.ts'
 import { computeReproPackHash } from '../utils/repro-pack.ts'
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { getProviderCapabilities, resolveAchievedLevel } from './modelCapabilities.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1612,17 +1613,24 @@ Deno.serve(async (req) => {
       const evaluationStartedAt = new Date().toISOString()
 
       const providerPolicy = getProviderPolicy(DEFAULT_MODEL_CONFIG.provider)
+      const providerCapabilities = getProviderCapabilities(DEFAULT_MODEL_CONFIG.provider)
 
       let determinismMode = body.deterministic?.enabled
         ? body.deterministic?.level ?? 'adaptive'
         : 'standard'
-      let achievedLevel = determinismMode
+      const requestedTopK = Number(Deno.env.get('EVALUATION_TOP_K') ?? '') || undefined
+      let achievedLevel = resolveAchievedLevel({
+        capabilities: providerCapabilities,
+        deterministicEnabled: body.deterministic?.enabled ?? false,
+        requestedTemperature: DEFAULT_MODEL_CONFIG.sampling.temperature,
+        requestedTopK,
+      })
       const seedValue = body.deterministic?.seed
         ?? Number(Deno.env.get('EVALUATION_SEED') ?? Math.floor(Math.random() * 1_000_000_000))
       const parametersUsed = {
         temperature: DEFAULT_MODEL_CONFIG.sampling.temperature,
         top_p: DEFAULT_MODEL_CONFIG.sampling.topP,
-        top_k: Number(Deno.env.get('EVALUATION_TOP_K') ?? '') || undefined,
+        top_k: requestedTopK,
       }
 
       if (body.deterministic?.enabled && providerPolicy.determinismSupport === 'none') {
@@ -1636,7 +1644,12 @@ Deno.serve(async (req) => {
         }
 
         determinismMode = 'standard'
-        achievedLevel = 'standard'
+        achievedLevel = resolveAchievedLevel({
+          capabilities: providerCapabilities,
+          deterministicEnabled: false,
+          requestedTemperature: DEFAULT_MODEL_CONFIG.sampling.temperature,
+          requestedTopK,
+        })
         console.warn('Falling back to non-deterministic mode due to provider guidance:', guidanceMessage)
       }
 

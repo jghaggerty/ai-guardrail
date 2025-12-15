@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { addDays, addWeeks, addMonths, formatDistanceToNow, isPast } from 'date-fns';
 import { EvidenceCollectionSettings } from '@/components/EvidenceCollectionSettings';
+import { describeDecodingSupport, getProviderCapabilities } from '@/lib/modelCapabilities';
 
 // Calculate next scheduled run based on frequency and last evaluation
 function getNextScheduledRun(lastEvaluated: string | null, frequency: string | null): Date | null {
@@ -89,17 +90,6 @@ const TEST_SUITE_OPTIONS = [
   { value: 'consistency', label: 'Consistency Analysis' },
   { value: 'hallucination', label: 'Hallucination Detection' }
 ];
-
-const DETERMINISM_SUPPORT: Record<string, 'full' | 'partial' | 'none'> = {
-  'OpenAI': 'full',
-  'Azure': 'full',
-  'Anthropic': 'partial',
-  'Google': 'partial',
-  'Meta': 'partial',
-  'DeepSeek': 'partial',
-  'AWS Bedrock': 'partial',
-  'Custom': 'none'
-};
 
 const Settings = () => {
   const { user } = useAuth();
@@ -502,16 +492,29 @@ const Settings = () => {
   const deterministicEnabled = evalSettings?.deterministic_enabled ?? false;
   const determinismLevel = evalSettings?.determinism_level || 'adaptive';
   const adaptiveIterations = evalSettings?.adaptive_iterations ?? true;
-  const unsupportedConfigs = llmConfigs.filter(config => {
-    const support = DETERMINISM_SUPPORT[config.provider] ?? 'none';
-    return support === 'none';
-  });
-  const partialConfigs = llmConfigs.filter(config => {
-    const support = DETERMINISM_SUPPORT[config.provider] ?? 'none';
-    return support === 'partial';
-  });
-  const unsupportedProviders = Array.from(new Set(unsupportedConfigs.map(c => c.provider)));
-  const partialProviders = Array.from(new Set(partialConfigs.map(c => c.provider)));
+
+  const capabilityByProvider = llmConfigs.reduce((acc, config) => {
+    acc[config.provider] = getProviderCapabilities(config.provider);
+    return acc;
+  }, {} as Record<string, ReturnType<typeof getProviderCapabilities>>);
+
+  const unsupportedProviders = Object.entries(capabilityByProvider)
+    .filter(([, capability]) => capability.seedSupport === 'none')
+    .map(([provider]) => provider);
+
+  const partialProviders = Object.entries(capabilityByProvider)
+    .filter(([, capability]) => capability.seedSupport === 'partial')
+    .map(([provider]) => provider);
+
+  const temperatureFloors = evalSettings
+    ? Object.entries(capabilityByProvider)
+        .filter(([, capability]) => evalSettings.temperature < capability.minTemperature)
+        .map(([provider, capability]) => ({ provider, min: capability.minTemperature }))
+    : [];
+
+  const decodingLimitations = Object.entries(capabilityByProvider)
+    .filter(([, capability]) => capability.decodingSupport !== 'top-p-top-k')
+    .map(([provider, capability]) => ({ provider, support: capability.decodingSupport }));
 
   if (loading) {
     return (
@@ -1023,9 +1026,7 @@ const Settings = () => {
                 {deterministicEnabled && unsupportedProviders.length > 0 && (
                   <Alert variant="destructive" className="border-red-500 bg-red-50 dark:bg-red-950/30">
                     <AlertTriangle className="w-4 h-4" />
-                    <AlertTitle className="flex items-center gap-2">
-                      Providers do not support determinism
-                    </AlertTitle>
+                    <AlertTitle className="flex items-center gap-2">Providers do not support seeds</AlertTitle>
                     <AlertDescription className="text-sm">
                       {unsupportedProviders.join(', ')} cannot apply deterministic seeds. These models will run in standard mode.
                     </AlertDescription>
@@ -1035,10 +1036,38 @@ const Settings = () => {
                 {deterministicEnabled && partialProviders.length > 0 && (
                   <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
                     <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    <AlertTitle className="flex items-center gap-2">Partial determinism</AlertTitle>
+                    <AlertTitle className="flex items-center gap-2">Best-effort seeding</AlertTitle>
                     <AlertDescription className="text-sm">
-                      {partialProviders.join(', ')} provide best-effort determinism. Adaptive iterations will collect more samples
+                      {partialProviders.join(', ')} provide seeds on a best-effort basis. Adaptive iterations will collect more samples
                       to stabilize results.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {deterministicEnabled && temperatureFloors.length > 0 && (
+                  <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <AlertTitle className="flex items-center gap-2">Temperature floors</AlertTitle>
+                    <AlertDescription className="text-sm space-y-1">
+                      {temperatureFloors.map(({ provider, min }) => (
+                        <div key={provider}>
+                          {provider} enforces a minimum temperature of {min}. Runs will be clamped to this floor.
+                        </div>
+                      ))}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {deterministicEnabled && decodingLimitations.length > 0 && (
+                  <Alert className="border-sky-500 bg-sky-50 dark:bg-sky-950/30">
+                    <Info className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    <AlertTitle className="flex items-center gap-2">Decoding limitations</AlertTitle>
+                    <AlertDescription className="text-sm space-y-1">
+                      {decodingLimitations.map(({ provider, support }) => (
+                        <div key={provider}>
+                          {provider}: {describeDecodingSupport(support)}
+                        </div>
+                      ))}
                     </AlertDescription>
                   </Alert>
                 )}
