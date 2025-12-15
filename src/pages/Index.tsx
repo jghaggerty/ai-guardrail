@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { HeuristicFinding, EvaluationRun, EvaluationConfig } from '@/types/bias';
 import { ConfigurationPanel } from '@/components/ConfigurationPanel';
@@ -33,6 +33,8 @@ const Index = () => {
   const [isDownloadingReproPack, setIsDownloadingReproPack] = useState(false);
   const [isVerifyingSignature, setIsVerifyingSignature] = useState(false);
   const [verificationResult, setVerificationResult] = useState<ReproPackVerificationResult | null>(null);
+  const [uploadedPackName, setUploadedPackName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const clearModelFilter = () => {
     setSearchParams({});
@@ -103,6 +105,8 @@ const Index = () => {
     setEvaluationRun(null);
     setSelectedFinding(null);
     resetProgress();
+    setVerificationResult(null);
+    setUploadedPackName(null);
   };
 
   const handleCopyReferenceId = async (referenceId: string) => {
@@ -125,12 +129,15 @@ const Index = () => {
     setIsDownloadingReproPack(true);
     try {
       const pack = await fetchReproPack(evaluationRun.reproPackId);
-      const payload = pack.content ?? {
+      const payload = {
         id: pack.id,
-        hash: pack.hash,
         signature: pack.signature,
-        signingAuthority: pack.signingAuthority,
-        createdAt: pack.createdAt,
+        signing_authority: pack.signingAuthority,
+        content_hash: pack.contentHash ?? pack.hash,
+        repro_pack_content: pack.content ?? {
+          id: pack.id,
+          evidence_reference_id: evaluationRun.evidenceReferenceId,
+        },
       };
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -166,8 +173,9 @@ const Index = () => {
 
     setIsVerifyingSignature(true);
     try {
-      const result = await verifyReproPackSignature(evaluationRun.reproPackId);
-      setVerificationResult(result);
+      const result = await verifyReproPackSignature({ reproPackId: evaluationRun.reproPackId });
+      setVerificationResult({ ...result, verificationSource: 'stored' });
+      setUploadedPackName(null);
       toast[result.valid ? 'success' : 'error'](
         result.valid ? 'Signature verified successfully' : 'Signature validation failed'
       );
@@ -183,6 +191,55 @@ const Index = () => {
       }
     } finally {
       setIsVerifyingSignature(false);
+    }
+  };
+
+  const handleUploadVerification = async (file: File) => {
+    setIsVerifyingSignature(true);
+    try {
+      const raw = await file.text();
+      const parsed = JSON.parse(raw);
+      const payload = parsed.repro_pack_content || parsed.pack || parsed.content || parsed;
+      const result = await verifyReproPackSignature({
+        packContent: payload,
+        signature: parsed.signature || parsed.signing?.signature,
+        expectedHash: parsed.content_hash || parsed.hash || parsed.repro_pack_hash,
+        signingAuthority: parsed.signing_authority || parsed.signing?.authority,
+      });
+
+      setVerificationResult({ ...result, verificationSource: 'uploaded' });
+      setUploadedPackName(file.name);
+
+      toast[result.valid ? 'success' : 'error'](
+        result.valid ? 'Uploaded pack verified successfully' : 'Uploaded pack failed verification'
+      );
+    } catch (error) {
+      console.error('Failed to verify uploaded repro pack:', error);
+
+      if (error instanceof ApiError) {
+        toast.error(error.message);
+      } else if (error instanceof Error) {
+        toast.error(error.message || 'Failed to verify uploaded pack');
+      } else {
+        toast.error('Failed to verify uploaded pack');
+      }
+    } finally {
+      setIsVerifyingSignature(false);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const triggerUploadVerification = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      void handleUploadVerification(file);
     }
   };
 
@@ -204,6 +261,13 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
       {/* Header */}
       <header className="border-b border-border bg-card">
         <div className="container mx-auto px-6 py-4">
@@ -545,7 +609,10 @@ const Index = () => {
                   verificationResult={verificationResult}
                   onDownload={handleDownloadReproPack}
                   onVerify={handleVerifyReproPack}
+                  onUploadVerify={triggerUploadVerification}
                   evidenceReferenceId={evaluationRun.evidenceReferenceId}
+                  uploadedPackName={uploadedPackName}
+                  verificationSource={verificationResult?.verificationSource}
                   onCopyEvidence={handleCopyReferenceId}
                 />
               )}
