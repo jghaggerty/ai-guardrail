@@ -7,6 +7,7 @@ import { LongitudinalChart } from '@/components/LongitudinalChart';
 import { RecommendationsList } from '@/components/RecommendationsList';
 import { FindingDetailsDialog } from '@/components/FindingDetailsDialog';
 import { HistoryPanel } from '@/components/HistoryPanel';
+import { ReproPackMetadata } from '@/components/ReproPackMetadata';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEvaluationProgress } from '@/hooks/useEvaluationProgress';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { runFullEvaluation, ApiError } from '@/lib/api';
+import { runFullEvaluation, ApiError, fetchReproPack, verifyReproPackSignature, ReproPackVerificationResult } from '@/lib/api';
 import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History, X, Copy, Check, Info, Database } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,10 +30,17 @@ const Index = () => {
   const [viewMode, setViewMode] = useState<'technical' | 'simplified'>('technical');
   const [isRunning, setIsRunning] = useState(false);
   const [copiedReferenceId, setCopiedReferenceId] = useState(false);
+  const [isDownloadingReproPack, setIsDownloadingReproPack] = useState(false);
+  const [isVerifyingSignature, setIsVerifyingSignature] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<ReproPackVerificationResult | null>(null);
 
   const clearModelFilter = () => {
     setSearchParams({});
   };
+
+  useEffect(() => {
+    setVerificationResult(null);
+  }, [evaluationRun?.id]);
   
   // Real-time progress tracking
   const { 
@@ -105,6 +113,76 @@ const Index = () => {
       setTimeout(() => setCopiedReferenceId(false), 2000);
     } catch (error) {
       toast.error('Failed to copy reference ID');
+    }
+  };
+
+  const handleDownloadReproPack = async () => {
+    if (!evaluationRun?.reproPackId) {
+      toast.error('No repro pack available for this analysis');
+      return;
+    }
+
+    setIsDownloadingReproPack(true);
+    try {
+      const pack = await fetchReproPack(evaluationRun.reproPackId);
+      const payload = pack.content ?? {
+        id: pack.id,
+        hash: pack.hash,
+        signature: pack.signature,
+        signingAuthority: pack.signingAuthority,
+        createdAt: pack.createdAt,
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `repro-pack-${pack.id}.json`;
+      link.click();
+
+      URL.revokeObjectURL(url);
+      toast.success('Repro pack JSON downloaded');
+    } catch (error) {
+      console.error('Failed to download repro pack:', error);
+
+      if (error instanceof ApiError) {
+        toast.error(error.message);
+      } else if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to download repro pack');
+      }
+    } finally {
+      setIsDownloadingReproPack(false);
+    }
+  };
+
+  const handleVerifyReproPack = async () => {
+    if (!evaluationRun?.reproPackId) {
+      toast.error('No repro pack available for verification');
+      return;
+    }
+
+    setIsVerifyingSignature(true);
+    try {
+      const result = await verifyReproPackSignature(evaluationRun.reproPackId);
+      setVerificationResult(result);
+      toast[result.valid ? 'success' : 'error'](
+        result.valid ? 'Signature verified successfully' : 'Signature validation failed'
+      );
+    } catch (error) {
+      console.error('Failed to verify repro pack signature:', error);
+
+      if (error instanceof ApiError) {
+        toast.error(error.message);
+      } else if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to verify repro pack signature');
+      }
+    } finally {
+      setIsVerifyingSignature(false);
     }
   };
 
@@ -453,6 +531,23 @@ const Index = () => {
                     </div>
                   </div>
                 </Card>
+              )}
+
+              {evaluationRun.reproPackId && (
+                <ReproPackMetadata
+                  reproPackId={evaluationRun.reproPackId}
+                  reproPackHash={evaluationRun.reproPackHash}
+                  signature={evaluationRun.signature}
+                  signingAuthority={evaluationRun.signingAuthority}
+                  createdAt={evaluationRun.reproPackCreatedAt}
+                  isDownloading={isDownloadingReproPack}
+                  isVerifying={isVerifyingSignature}
+                  verificationResult={verificationResult}
+                  onDownload={handleDownloadReproPack}
+                  onVerify={handleVerifyReproPack}
+                  evidenceReferenceId={evaluationRun.evidenceReferenceId}
+                  onCopyEvidence={handleCopyReferenceId}
+                />
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

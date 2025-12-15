@@ -65,11 +65,51 @@ interface ApiTrendResponse {
   drift_message: string | null;
 }
 
+interface ApiReproPackFields {
+  repro_pack_id?: string;
+  repro_pack_hash?: string;
+  signature?: string;
+  signing_authority?: string;
+  created_at?: string;
+  repro_pack_created_at?: string;
+}
+
 interface FullEvaluationResponse {
   evaluation: ApiEvaluationResponse;
   findings: ApiHeuristicFinding[];
   recommendations: ApiRecommendation[];
   trends: ApiTrendResponse;
+  signature?: string;
+  signing_authority?: string;
+  repro_pack_created_at?: string;
+  repro_pack_id?: string;
+  repro_pack_hash?: string;
+}
+
+interface ReproPackRecord {
+  id: string;
+  content_hash?: string | null;
+  signature?: string | null;
+  signing_authority?: string | null;
+  created_at?: string | null;
+  repro_pack_content?: Record<string, unknown> | null;
+}
+
+export interface ReproPackVerificationResult {
+  valid: boolean;
+  message?: string;
+  customerEvidenceId?: string;
+  evidenceUrl?: string;
+  signingAuthority?: string;
+}
+
+export interface ReproPackDetails {
+  id: string;
+  hash?: string;
+  signature?: string;
+  signingAuthority?: string;
+  createdAt?: string;
+  content?: Record<string, unknown>;
 }
 
 // Error class for API errors
@@ -107,6 +147,37 @@ function getHeuristicName(type: HeuristicType): string {
     availability_heuristic: 'Availability Heuristic',
   };
   return nameMap[type];
+}
+
+function truncateHash(hash?: string | null, length: number = 12): string | undefined {
+  if (!hash) return undefined;
+  return hash.slice(0, length);
+}
+
+function mapReproPackMetadata(fields: ApiReproPackFields) {
+  return {
+    reproPackId: fields.repro_pack_id,
+    reproPackHash: fields.repro_pack_hash,
+    signature: fields.signature,
+    signingAuthority: fields.signing_authority,
+    reproPackCreatedAt: fields.repro_pack_created_at
+      ? new Date(fields.repro_pack_created_at)
+      : fields.created_at
+        ? new Date(fields.created_at)
+        : undefined,
+  };
+}
+
+function mapReproPackRecord(record?: ReproPackRecord | null) {
+  if (!record) return undefined;
+
+  return {
+    reproPackId: record.id,
+    reproPackHash: truncateHash(record.content_hash),
+    signature: record.signature || undefined,
+    signingAuthority: record.signing_authority || undefined,
+    reproPackCreatedAt: record.created_at ? new Date(record.created_at) : undefined,
+  };
 }
 
 // Transform API heuristic finding to frontend type
@@ -206,7 +277,14 @@ export async function runFullEvaluation(
   // Transform the response
   const findings = data.findings.map(transformHeuristicFinding);
   const recommendations = data.recommendations.map(transformRecommendation);
-  
+  const reproPackMetadata = mapReproPackMetadata({
+    repro_pack_id: data.repro_pack_id,
+    repro_pack_hash: data.repro_pack_hash,
+    signature: data.signature,
+    signing_authority: data.signing_authority,
+    repro_pack_created_at: data.repro_pack_created_at,
+  });
+
   // Fetch real historical baseline data instead of using synthetic trend data
   const baselineData = await fetchHistoricalBaselineData(config.systemName);
 
@@ -224,6 +302,7 @@ export async function runFullEvaluation(
     baselineComparison: baselineData,
     evidenceReferenceId: data.evaluation.evidence_reference_id || undefined,
     evidenceStorageType: data.evaluation.evidence_storage_type || undefined,
+    ...reproPackMetadata,
   };
 }
 
@@ -343,6 +422,20 @@ export async function loadEvaluationDetails(evaluationId: string): Promise<Evalu
     console.error('Error fetching recommendations:', recsError);
   }
 
+  // Fetch repro pack metadata
+  const { data: reproPack, error: reproError } = await supabase
+    .from('repro_packs')
+    .select('id, content_hash, signature, signing_authority, created_at')
+    .eq('evaluation_run_id', evaluationId)
+    .order('created_at', { ascending: false })
+    .maybeSingle();
+
+  if (reproError) {
+    console.error('Error fetching repro pack metadata:', reproError);
+  }
+
+  const reproPackMetadata = mapReproPackRecord(reproPack);
+
   // Transform findings
   const transformedFindings = (findings || []).map(f => {
     const type = mapBackendHeuristicType(f.heuristic_type);
@@ -390,7 +483,64 @@ export async function loadEvaluationDetails(evaluationId: string): Promise<Evalu
     baselineComparison: baselineData,
     evidenceReferenceId: evaluation.evidence_reference_id || undefined,
     evidenceStorageType: (evaluation.evidence_storage_type as EvidenceStorageType | null) || undefined,
+    ...reproPackMetadata,
   };
+}
+
+// ============================================================================
+// REPRO PACK API
+// ============================================================================
+
+/**
+ * Fetch stored repro pack metadata and content for download
+ */
+export async function fetchReproPack(reproPackId: string): Promise<ReproPackDetails> {
+  const { data, error } = await supabase
+    .from('repro_packs')
+    .select('id, content_hash, signature, signing_authority, created_at, repro_pack_content')
+    .eq('id', reproPackId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching repro pack:', error);
+    throw new ApiError(500, 'Failed to fetch repro pack');
+  }
+
+  if (!data) {
+    throw new ApiError(404, 'Repro pack not found');
+  }
+
+  return {
+    id: data.id,
+    hash: truncateHash(data.content_hash),
+    signature: data.signature || undefined,
+    signingAuthority: data.signing_authority || undefined,
+    createdAt: data.created_at || undefined,
+    content: data.repro_pack_content || undefined,
+  };
+}
+
+/**
+ * Verify repro pack signature via Edge Function
+ */
+export async function verifyReproPackSignature(reproPackId: string): Promise<ReproPackVerificationResult> {
+  const { data, error } = await supabase.functions.invoke<ReproPackVerificationResult>(
+    'verify-repro-pack-signature',
+    {
+      body: { reproPackId }
+    }
+  );
+
+  if (error) {
+    console.error('Error verifying repro pack signature:', error);
+    throw new ApiError(500, error.message || 'Failed to verify repro pack signature');
+  }
+
+  if (!data) {
+    throw new ApiError(500, 'No verification result returned');
+  }
+
+  return data;
 }
 
 // ============================================================================
