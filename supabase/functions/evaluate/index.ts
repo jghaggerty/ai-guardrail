@@ -49,6 +49,7 @@ type SeverityLevel = 'low' | 'medium' | 'high' | 'critical'
 type ZoneStatus = 'green' | 'yellow' | 'red'
 type ImpactLevel = 'low' | 'medium' | 'high'
 type DifficultyLevel = 'easy' | 'moderate' | 'complex'
+type SigningMode = 'biaslens' | 'customer'
 
 interface EvaluationRequest {
   ai_system_name: string
@@ -78,6 +79,14 @@ interface ReproCaptureEntry {
   referenceId: string
   outputHash: string
   capturedAt: string
+}
+
+interface SigningMaterial {
+  signingAuthority: string
+  signingKeyId: string
+  signingMode: SigningMode
+  privateKeyPem: string
+  publicKeyPem: string
 }
 
 // Calculation utilities
@@ -202,6 +211,112 @@ async function signHash(privateKeyPem: string, contentHash: string): Promise<str
 
 function truncateHash(hash: string, length: number = 12): string {
   return hash.slice(0, length)
+}
+
+async function decryptPrivateKey(encryptedData: string, secret: string): Promise<string> {
+  const decoder = new TextDecoder()
+  const encoder = new TextEncoder()
+
+  const combined = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0))
+  const salt = combined.slice(0, 16)
+  const iv = combined.slice(16, 28)
+  const encrypted = combined.slice(28)
+
+  const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(secret), 'PBKDF2', false, ['deriveKey'])
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['decrypt']
+  )
+
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted)
+  return decoder.decode(decrypted)
+}
+
+async function resolveSigningMaterial(supabase: SupabaseClient, teamId?: string): Promise<SigningMaterial> {
+  const defaultPrivateKey = Deno.env.get('REPRO_PACK_SIGNING_PRIVATE_KEY')
+  const defaultPublicKey = Deno.env.get('REPRO_PACK_SIGNING_PUBLIC_KEY')
+  const defaultSigningKeyId = Deno.env.get('REPRO_PACK_SIGNING_KEY_ID') || 'default'
+  const defaultSigningAuthority = Deno.env.get('REPRO_PACK_SIGNING_AUTHORITY') || 'BiasLens'
+
+  if (!teamId) {
+    if (!defaultPrivateKey) {
+      throw new Error('Repro pack signing key not configured')
+    }
+
+    if (!defaultPublicKey) {
+      throw new Error('Repro pack signing public key not configured')
+    }
+
+    return {
+      signingAuthority: defaultSigningAuthority,
+      signingKeyId: defaultSigningKeyId,
+      signingMode: 'biaslens',
+      privateKeyPem: defaultPrivateKey,
+      publicKeyPem: defaultPublicKey,
+    }
+  }
+
+  const { data: signingConfig, error: signingConfigError } = await supabase
+    .from('team_signing_configs')
+    .select('signing_mode, active_signing_key_id')
+    .eq('team_id', teamId)
+    .maybeSingle()
+
+  if (signingConfigError) {
+    console.error('Failed to load signing config for team', teamId, signingConfigError)
+  }
+
+  if (signingConfig?.signing_mode === 'customer' && signingConfig.active_signing_key_id) {
+    const { data: activeKey, error: keyError } = await supabase
+      .from('signing_keys')
+      .select('signing_key_id, signing_authority, public_key, private_key_encrypted, status')
+      .eq('id', signingConfig.active_signing_key_id)
+      .eq('team_id', teamId)
+      .maybeSingle()
+
+    if (keyError || !activeKey) {
+      console.error('Active signing key not found for team', teamId, keyError)
+      throw new Error('Active customer signing key not found')
+    }
+
+    if (activeKey.status !== 'active') {
+      throw new Error('Customer signing key is not active')
+    }
+
+    const encryptionSecret = Deno.env.get('SIGNING_KEY_ENCRYPTION_SECRET')
+    if (!encryptionSecret) {
+      throw new Error('SIGNING_KEY_ENCRYPTION_SECRET not configured')
+    }
+
+    const privateKeyPem = await decryptPrivateKey(activeKey.private_key_encrypted, encryptionSecret)
+
+    return {
+      signingAuthority: activeKey.signing_authority,
+      signingKeyId: activeKey.signing_key_id,
+      signingMode: 'customer',
+      privateKeyPem,
+      publicKeyPem: activeKey.public_key,
+    }
+  }
+
+  if (!defaultPrivateKey) {
+    throw new Error('Repro pack signing key not configured')
+  }
+
+  if (!defaultPublicKey) {
+    throw new Error('Repro pack signing public key not configured')
+  }
+
+  return {
+    signingAuthority: defaultSigningAuthority,
+    signingKeyId: defaultSigningKeyId,
+    signingMode: 'biaslens',
+    privateKeyPem: defaultPrivateKey,
+    publicKeyPem: defaultPublicKey,
+  }
 }
 
 // Map framework bias types to legacy heuristic types
@@ -2421,6 +2536,8 @@ Deno.serve(async (req) => {
         ?? evaluation.evidence_reference_id
         ?? null
 
+      const signingMaterial = await resolveSigningMaterial(supabase, teamId)
+
       const reproPackContent = {
         schema_version: '1.0.0',
         evaluation_run_id: evaluation.id,
@@ -2457,19 +2574,17 @@ Deno.serve(async (req) => {
           zone_status: zoneStatus,
         },
         evidence_reference_id: evidenceReferenceId,
+        signing: {
+          mode: signingMaterial.signingMode,
+          authority: signingMaterial.signingAuthority,
+          key_id: signingMaterial.signingKeyId,
+          public_key: signingMaterial.publicKeyPem,
+        },
       }
 
       const serializedReproPack = JSON.stringify(reproPackContent)
       const contentHash = await sha256Hex(serializedReproPack)
-      const signingKeyPem = Deno.env.get('REPRO_PACK_SIGNING_PRIVATE_KEY')
-      const signingKeyId = Deno.env.get('REPRO_PACK_SIGNING_KEY_ID') || 'default'
-      const signingAuthority = Deno.env.get('REPRO_PACK_SIGNING_AUTHORITY') || 'BiasLens'
-
-      if (!signingKeyPem) {
-        throw new Error('Repro pack signing key not configured')
-      }
-
-      const signature = await signHash(signingKeyPem, contentHash)
+      const signature = await signHash(signingMaterial.privateKeyPem, contentHash)
 
       const { data: reproPackRecord, error: reproPackError } = await supabase
         .from('repro_packs')
@@ -2477,8 +2592,8 @@ Deno.serve(async (req) => {
           evaluation_run_id: evaluation.id,
           content_hash: contentHash,
           signature,
-          signing_authority: signingAuthority,
-          signing_key_id: signingKeyId,
+          signing_authority: signingMaterial.signingAuthority,
+          signing_key_id: signingMaterial.signingKeyId,
           created_at: completionTimestamp,
           repro_pack_content: reproPackContent,
         })
