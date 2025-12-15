@@ -154,7 +154,7 @@ class MockEvidenceCollector implements EvidenceCollector {
 const setupMocks = () => {
   // Store original implementations
   const originalEnv = Deno.env.get;
-  const originalCreateClient = globalThis.createClient;
+  const originalCreateClient = (globalThis as Record<string, unknown>).createClient;
   
   // Mock environment variables
   Deno.env.get = (key: string) => {
@@ -168,7 +168,7 @@ const setupMocks = () => {
     // Restore original implementations
     Deno.env.get = originalEnv;
     if (originalCreateClient) {
-      globalThis.createClient = originalCreateClient;
+      (globalThis as Record<string, unknown>).createClient = originalCreateClient;
     }
   };
 };

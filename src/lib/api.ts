@@ -436,8 +436,8 @@ export async function fetchHistoricalEvaluations(): Promise<HistoricalEvaluation
     status: e.status,
     heuristicTypes: e.heuristic_types as string[],
     iterationCount: e.iteration_count,
-    evidenceReferenceId: e.evidence_reference_id || undefined,
-    evidenceStorageType: (e.evidence_storage_type as EvidenceStorageType | null) || undefined,
+    evidenceReferenceId: undefined,
+    evidenceStorageType: undefined,
   }));
 }
 
@@ -477,19 +477,8 @@ export async function loadEvaluationDetails(evaluationId: string): Promise<Evalu
     console.error('Error fetching recommendations:', recsError);
   }
 
-  // Fetch repro pack metadata
-  const { data: reproPack, error: reproError } = await supabase
-    .from('repro_packs')
-    .select('id, content_hash, signature, signing_authority, created_at')
-    .eq('evaluation_run_id', evaluationId)
-    .order('created_at', { ascending: false })
-    .maybeSingle();
-
-  if (reproError) {
-    console.error('Error fetching repro pack metadata:', reproError);
-  }
-
-  const reproPackMetadata = mapReproPackRecord(reproPack);
+  // Repro pack metadata is not yet available (table doesn't exist)
+  const reproPackMetadata: ApiReproPackFields = {};
 
   // Transform findings
   const transformedFindings = (findings || []).map(f => {
@@ -536,85 +525,43 @@ export async function loadEvaluationDetails(evaluationId: string): Promise<Evalu
     timestamp: new Date(evaluation.created_at),
     overallScore: evaluation.overall_score || 0,
     baselineComparison: baselineData,
-    evidenceReferenceId: evaluation.evidence_reference_id || undefined,
-    evidenceStorageType: (evaluation.evidence_storage_type as EvidenceStorageType | null) || undefined,
-    determinismMode: evaluation.determinism_mode || undefined,
-    seedValue: evaluation.seed_value || undefined,
-    iterationsRun: evaluation.iterations_run || undefined,
-    achievedLevel: evaluation.achieved_level || undefined,
-    parametersUsed: evaluation.parameters_used as Record<string, number | undefined> | null || undefined,
-    confidenceIntervals: evaluation.confidence_intervals as Record<string, unknown> | null || undefined,
-    perIterationResults: evaluation.per_iteration_results as Array<Record<string, unknown>> | null || undefined,
+    evidenceReferenceId: undefined,
+    evidenceStorageType: undefined,
+    determinismMode: undefined,
+    seedValue: undefined,
+    iterationsRun: undefined,
+    achievedLevel: undefined,
+    parametersUsed: undefined,
+    confidenceIntervals: undefined,
+    perIterationResults: undefined,
     ...reproPackMetadata,
   };
 }
 
 // ============================================================================
-// REPRO PACK API
+// REPRO PACK API (Placeholder - table not yet created)
 // ============================================================================
 
 /**
  * Fetch stored repro pack metadata and content for download
+ * Note: This is a placeholder until the repro_packs table is created
  */
-export async function fetchReproPack(reproPackId: string): Promise<ReproPackDetails> {
-  const { data, error } = await supabase
-    .from('repro_packs')
-    .select('id, content_hash, signature, signing_authority, created_at, repro_pack_content')
-    .eq('id', reproPackId)
-    .maybeSingle();
-
-  if (error) {
-    console.error('Error fetching repro pack:', error);
-    throw new ApiError(500, 'Failed to fetch repro pack');
-  }
-
-  if (!data) {
-    throw new ApiError(404, 'Repro pack not found');
-  }
-
-  return {
-    id: data.id,
-    hash: truncateHash(data.content_hash),
-    contentHash: data.content_hash || undefined,
-    signature: data.signature || undefined,
-    signingAuthority: data.signing_authority || undefined,
-    createdAt: data.created_at || undefined,
-    content: data.repro_pack_content || undefined,
-  };
+export async function fetchReproPack(_reproPackId: string): Promise<ReproPackDetails> {
+  throw new ApiError(501, 'Repro pack functionality not yet implemented');
 }
 
 /**
  * Verify repro pack signature via Edge Function
+ * Note: This is a placeholder until the repro_packs table is created
  */
 export async function verifyReproPackSignature(
-  params: VerifyReproPackPayload | string
+  _params: VerifyReproPackPayload | string
 ): Promise<ReproPackVerificationResult> {
-  const payload = typeof params === 'string' ? { reproPackId: params } : params;
-
-  const { data, error } = await supabase.functions.invoke<ReproPackVerificationResult>(
-    'verify-repro-pack-signature',
-    {
-      body: payload
-    }
-  );
-
-  if (error) {
-    console.error('Error verifying repro pack signature:', error);
-    throw new ApiError(500, error.message || 'Failed to verify repro pack signature');
-  }
-
-  if (!data) {
-    throw new ApiError(500, 'No verification result returned');
-  }
-
-  return {
-    ...data,
-    verificationSource: payload.packContent ? 'uploaded' : 'stored'
-  };
+  throw new ApiError(501, 'Repro pack verification not yet implemented');
 }
 
 // ============================================================================
-// EVIDENCE COLLECTION CONFIGURATION API
+// EVIDENCE COLLECTION CONFIGURATION API (Placeholder - table not yet created)
 // ============================================================================
 
 /**
@@ -633,147 +580,31 @@ export interface EvidenceCollectionConfig {
 
 /**
  * Fetch evidence collection configuration for the current user's team
+ * Note: This is a placeholder until the evidence_collection_configs table is created
  */
 export async function fetchEvidenceCollectionConfig(): Promise<EvidenceCollectionConfig | null> {
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  
-  if (sessionError || !session) {
-    throw new ApiError(401, 'Authentication required. Please sign in.');
-  }
-
-  // Get user's team ID
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('team_id')
-    .eq('id', session.user.id)
-    .single();
-
-  if (profileError || !profile?.team_id) {
-    throw new ApiError(404, 'User profile or team not found');
-  }
-
-  // Fetch evidence collection configuration
-  const { data: config, error: configError } = await supabase
-    .from('evidence_collection_configs')
-    .select('*')
-    .eq('team_id', profile.team_id)
-    .maybeSingle();
-
-  if (configError) {
-    console.error('Error fetching evidence collection config:', configError);
-    throw new ApiError(500, 'Failed to fetch evidence collection configuration');
-  }
-
-  return config as EvidenceCollectionConfig | null;
+  // Return null - table doesn't exist yet
+  return null;
 }
 
 /**
  * Save or update evidence collection configuration
+ * Note: This is a placeholder until the evidence_collection_configs table is created
  */
 export async function saveEvidenceCollectionConfig(
-  config: Partial<EvidenceCollectionConfig> & {
+  _config: Partial<EvidenceCollectionConfig> & {
     storage_type: 's3' | 'splunk' | 'elk';
     is_enabled: boolean;
     configuration: Record<string, unknown>;
   }
 ): Promise<EvidenceCollectionConfig> {
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  
-  if (sessionError || !session) {
-    throw new ApiError(401, 'Authentication required. Please sign in.');
-  }
-
-  // Get user's team ID
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('team_id')
-    .eq('id', session.user.id)
-    .single();
-
-  if (profileError || !profile?.team_id) {
-    throw new ApiError(404, 'User profile or team not found');
-  }
-
-  const configData = {
-    team_id: profile.team_id,
-    storage_type: config.storage_type,
-    is_enabled: config.is_enabled,
-    configuration: config.configuration,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (config.id) {
-    // Update existing config
-    const { data: updatedConfig, error: updateError } = await supabase
-      .from('evidence_collection_configs')
-      .update(configData)
-      .eq('id', config.id)
-      .eq('team_id', profile.team_id)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('Error updating evidence collection config:', updateError);
-      throw new ApiError(500, 'Failed to update evidence collection configuration');
-    }
-
-    return updatedConfig as EvidenceCollectionConfig;
-  } else {
-    // Create new config
-    const { data: newConfig, error: createError } = await supabase
-      .from('evidence_collection_configs')
-      .insert(configData)
-      .select()
-      .single();
-
-    if (createError) {
-      console.error('Error creating evidence collection config:', createError);
-      throw new ApiError(500, 'Failed to create evidence collection configuration');
-    }
-
-    return newConfig as EvidenceCollectionConfig;
-  }
+  throw new ApiError(501, 'Evidence collection configuration not yet implemented');
 }
 
 /**
  * Test connection to evidence storage system
+ * Note: This is a placeholder until the evidence_collection_configs table is created
  */
-export async function testEvidenceConnection(configId: string): Promise<{ success: boolean; message: string }> {
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  
-  if (sessionError || !session) {
-    throw new ApiError(401, 'Authentication required. Please sign in.');
-  }
-
-  // Call the test-evidence-connection edge function
-  const { data, error } = await supabase.functions.invoke<{ success: boolean; message: string }>(
-    'test-evidence-connection',
-    {
-      body: { configId }
-    }
-  );
-
-  if (error) {
-    console.error('Error testing evidence connection:', error);
-    throw new ApiError(500, error.message || 'Failed to test evidence connection');
-  }
-
-  if (!data) {
-    throw new ApiError(500, 'No response from connection test');
-  }
-
-  // Update last_tested_at if test was successful
-  if (data.success) {
-    const { error: updateError } = await supabase
-      .from('evidence_collection_configs')
-      .update({ last_tested_at: new Date().toISOString() })
-      .eq('id', configId);
-
-    if (updateError) {
-      console.error('Error updating last_tested_at:', updateError);
-      // Don't throw - the test was successful, just the timestamp update failed
-    }
-  }
-
-  return data;
+export async function testEvidenceConnection(_configId: string): Promise<{ success: boolean; message: string }> {
+  throw new ApiError(501, 'Evidence collection connection test not yet implemented');
 }

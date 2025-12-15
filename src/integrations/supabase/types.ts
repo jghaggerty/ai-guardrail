@@ -106,23 +106,16 @@ export type Database = {
         Row: {
           alert_emails: string[] | null
           alert_threshold: string | null
-          adaptive_iterations: boolean | null
           confidence_interval: number | null
           created_at: string
-          deterministic_enabled: boolean | null
-          determinism_level: string | null
-          fixed_iterations: number | null
           id: string
           keep_temperature_constant: boolean | null
-          max_iterations: number | null
-          min_iterations: number | null
           protected_attributes: string[] | null
           report_emails: string[] | null
           sample_size: number | null
           schedule_day: number | null
           schedule_frequency: string | null
           schedule_time: string | null
-          stability_threshold: number | null
           selected_heuristics: string[] | null
           team_id: string
           temperature: number | null
@@ -132,23 +125,16 @@ export type Database = {
         Insert: {
           alert_emails?: string[] | null
           alert_threshold?: string | null
-          adaptive_iterations?: boolean | null
           confidence_interval?: number | null
           created_at?: string
-          deterministic_enabled?: boolean | null
-          determinism_level?: string | null
-          fixed_iterations?: number | null
           id?: string
           keep_temperature_constant?: boolean | null
-          max_iterations?: number | null
-          min_iterations?: number | null
           protected_attributes?: string[] | null
           report_emails?: string[] | null
           sample_size?: number | null
           schedule_day?: number | null
           schedule_frequency?: string | null
           schedule_time?: string | null
-          stability_threshold?: number | null
           selected_heuristics?: string[] | null
           team_id: string
           temperature?: number | null
@@ -158,23 +144,16 @@ export type Database = {
         Update: {
           alert_emails?: string[] | null
           alert_threshold?: string | null
-          adaptive_iterations?: boolean | null
           confidence_interval?: number | null
           created_at?: string
-          deterministic_enabled?: boolean | null
-          determinism_level?: string | null
-          fixed_iterations?: number | null
           id?: string
           keep_temperature_constant?: boolean | null
-          max_iterations?: number | null
-          min_iterations?: number | null
           protected_attributes?: string[] | null
           report_emails?: string[] | null
           sample_size?: number | null
           schedule_day?: number | null
           schedule_frequency?: string | null
           schedule_time?: string | null
-          stability_threshold?: number | null
           selected_heuristics?: string[] | null
           team_id?: string
           temperature?: number | null
@@ -196,13 +175,6 @@ export type Database = {
           ai_system_name: string
           completed_at: string | null
           created_at: string
-          determinism_mode: string | null
-          seed_value: number | null
-          iterations_run: number | null
-          achieved_level: string | null
-          parameters_used: Json | null
-          confidence_intervals: Json | null
-          per_iteration_results: Json | null
           heuristic_types: Json
           id: string
           iteration_count: number
@@ -216,13 +188,6 @@ export type Database = {
           ai_system_name: string
           completed_at?: string | null
           created_at?: string
-          determinism_mode?: string | null
-          seed_value?: number | null
-          iterations_run?: number | null
-          achieved_level?: string | null
-          parameters_used?: Json | null
-          confidence_intervals?: Json | null
-          per_iteration_results?: Json | null
           heuristic_types: Json
           id?: string
           iteration_count: number
@@ -236,13 +201,6 @@ export type Database = {
           ai_system_name?: string
           completed_at?: string | null
           created_at?: string
-          determinism_mode?: string | null
-          seed_value?: number | null
-          iterations_run?: number | null
-          achieved_level?: string | null
-          parameters_used?: Json | null
-          confidence_intervals?: Json | null
-          per_iteration_results?: Json | null
           heuristic_types?: Json
           id?: string
           iteration_count?: number
@@ -258,65 +216,6 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      evidence_references: {
-        Row: {
-          achieved_level: string | null
-          confidence_intervals: Json | null
-          created_at: string
-          determinism_mode: string | null
-          evaluation_id: string
-          id: string
-          iterations_run: number | null
-          parameters_used: Json | null
-          per_iteration_results: Json | null
-          reference_id: string
-          seed_value: number | null
-          storage_location: string
-          storage_type: string
-          test_case_id: string
-        }
-        Insert: {
-          achieved_level?: string | null
-          confidence_intervals?: Json | null
-          created_at?: string
-          determinism_mode?: string | null
-          evaluation_id: string
-          id?: string
-          iterations_run?: number | null
-          parameters_used?: Json | null
-          per_iteration_results?: Json | null
-          reference_id: string
-          seed_value?: number | null
-          storage_location: string
-          storage_type: string
-          test_case_id: string
-        }
-        Update: {
-          achieved_level?: string | null
-          confidence_intervals?: Json | null
-          created_at?: string
-          determinism_mode?: string | null
-          evaluation_id?: string
-          id?: string
-          iterations_run?: number | null
-          parameters_used?: Json | null
-          per_iteration_results?: Json | null
-          reference_id?: string
-          seed_value?: number | null
-          storage_location?: string
-          storage_type?: string
-          test_case_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "evidence_references_evaluation_id_fkey"
-            columns: ["evaluation_id"]
-            isOneToOne: false
-            referencedRelation: "evaluations"
             referencedColumns: ["id"]
           },
         ]

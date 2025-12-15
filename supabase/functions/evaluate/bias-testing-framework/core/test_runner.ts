@@ -103,7 +103,7 @@ export class TestRunner implements ITestRunner {
       cvThreshold: 0.05,
     };
 
-    const provided = this.config.iterationControl ?? {};
+    const provided: Partial<IterationControlConfig> = this.config.iterationControl ?? {};
     const merged: IterationControlConfig = {
       ...defaults,
       ...provided,

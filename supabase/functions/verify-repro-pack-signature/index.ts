@@ -119,6 +119,7 @@ serve(async (req) => {
     return new Response(JSON.stringify(diagnostics), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('Verification error', error);
-    return new Response(JSON.stringify({ valid: false, message: error.message || 'Verification failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const errorMessage = error instanceof Error ? error.message : 'Verification failed';
+    return new Response(JSON.stringify({ valid: false, message: errorMessage }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
