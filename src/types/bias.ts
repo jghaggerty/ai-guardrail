@@ -47,6 +47,7 @@ export interface EvaluationConfig {
     maxIterations?: number;
     stabilityThreshold?: number;
     fixedIterations?: number;
+    allowNonDeterministicFallback?: boolean;
   };
 }
 

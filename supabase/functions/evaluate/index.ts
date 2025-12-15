@@ -62,6 +62,160 @@ const DEFAULT_MODEL_CONFIG = {
   },
 }
 
+interface ProviderRateLimitPolicy {
+  providerId: string
+  displayName: string
+  requestsPerMinute: number
+  burstLimit?: number
+  minIntervalMs: number
+  retryAfterMs: number
+  determinismSupport: 'full' | 'partial' | 'none'
+  determinismGuidance: string
+}
+
+const PROVIDER_POLICIES: Record<string, ProviderRateLimitPolicy> = {
+  'openai': {
+    providerId: 'openai',
+    displayName: 'OpenAI',
+    requestsPerMinute: 60,
+    minIntervalMs: 1100,
+    retryAfterMs: 2000,
+    determinismSupport: 'partial',
+    determinismGuidance: 'OpenAI supports seeds on some models. If a seed is rejected, retry without determinism or lower concurrency.',
+  },
+  'anthropic': {
+    providerId: 'anthropic',
+    displayName: 'Anthropic',
+    requestsPerMinute: 30,
+    minIntervalMs: 2200,
+    retryAfterMs: 2500,
+    determinismSupport: 'none',
+    determinismGuidance: 'Anthropic models do not honor deterministic seeds. Switch to standard mode for reliable execution.',
+  },
+  'biaslens-simulator': {
+    providerId: 'biaslens-simulator',
+    displayName: 'BiasLens simulator',
+    requestsPerMinute: 120,
+    minIntervalMs: 500,
+    retryAfterMs: 1000,
+    determinismSupport: 'full',
+    determinismGuidance: 'Simulator accepts deterministic parameters for replay and confidence calculations.',
+  },
+}
+
+function getProviderPolicy(provider: string): ProviderRateLimitPolicy {
+  const normalized = provider.toLowerCase()
+  return PROVIDER_POLICIES[normalized] ?? {
+    providerId: normalized,
+    displayName: provider,
+    requestsPerMinute: 60,
+    minIntervalMs: 1000,
+    retryAfterMs: 2000,
+    determinismSupport: 'partial',
+    determinismGuidance: 'Provider did not specify determinism guarantees. Consider disabling strict seeds if requests fail.',
+  }
+}
+
+interface RateLimitDelayContext {
+  delayMs: number
+  etaMs: number
+  remainingIterations: number
+  policy: ProviderRateLimitPolicy
+}
+
+class ProviderCallScheduler {
+  private lastCallAt = 0
+  private readonly policy: ProviderRateLimitPolicy
+
+  constructor(policy: ProviderRateLimitPolicy) {
+    this.policy = policy
+  }
+
+  estimateRemainingMs(remainingIterations: number): number {
+    const interval = Math.max(this.policy.minIntervalMs, Math.floor(60000 / Math.max(1, this.policy.requestsPerMinute)))
+    return remainingIterations * interval
+  }
+
+  private async delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  private async executeWithRetry<T>(task: () => Promise<T>, retryCount = 0): Promise<T> {
+    try {
+      return await task()
+    } catch (error) {
+      const shouldRetry = error && typeof error === 'object' && 'status' in (error as Record<string, unknown>) && (error as Record<string, unknown>).status === 429
+      if (shouldRetry && retryCount < 3) {
+        const retryAfter = 'retryAfter' in (error as Record<string, unknown>)
+          ? Number((error as Record<string, unknown>).retryAfter) * 1000
+          : this.policy.retryAfterMs * Math.pow(2, retryCount)
+        console.warn(`Rate limit hit, backing off for ${retryAfter}ms`)
+        await this.delay(retryAfter)
+        return this.executeWithRetry(task, retryCount + 1)
+      }
+      throw error
+    }
+  }
+
+  async execute<T>(task: () => Promise<T>, context?: { remainingIterations?: number; onRateLimit?: (ctx: RateLimitDelayContext) => Promise<void> | void }): Promise<T> {
+    const now = Date.now()
+    const interval = Math.max(this.policy.minIntervalMs, Math.floor(60000 / Math.max(1, this.policy.requestsPerMinute)))
+    const elapsed = now - this.lastCallAt
+    const waitMs = Math.max(0, interval - elapsed)
+
+    if (waitMs > 0 && context?.onRateLimit) {
+      const eta = waitMs + this.estimateRemainingMs(context.remainingIterations ?? 0)
+      await context.onRateLimit({
+        delayMs: waitMs,
+        etaMs: eta,
+        remainingIterations: context.remainingIterations ?? 0,
+        policy: this.policy,
+      })
+    }
+
+    if (waitMs > 0) {
+      await this.delay(waitMs)
+    }
+
+    const result = await this.executeWithRetry(task)
+    this.lastCallAt = Date.now()
+    return result
+  }
+}
+
+function formatDuration(ms: number): string {
+  const seconds = Math.max(1, Math.round(ms / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remaining = seconds % 60
+  return `${minutes}m ${remaining}s`
+}
+
+interface IterationExecutionOptions {
+  scheduler?: ProviderCallScheduler
+  onThrottle?: (ctx: RateLimitDelayContext) => Promise<void> | void
+}
+
+async function generateResponseWithRateLimit(
+  runner: TestRunner,
+  testCase: TestCase,
+  iteration: number,
+  totalIterations: number,
+  options?: IterationExecutionOptions
+) {
+  if (options?.scheduler) {
+    return options.scheduler.execute(
+      () => runner.generateMockResponse(testCase, iteration),
+      {
+        remainingIterations: Math.max(totalIterations - iteration, 0),
+        onRateLimit: options.onThrottle,
+      }
+    )
+  }
+
+  return runner.generateMockResponse(testCase, iteration)
+}
+
 interface EvaluationRequest {
   ai_system_name: string
   heuristic_types: HeuristicType[]
@@ -75,6 +229,7 @@ interface EvaluationRequest {
     stability_threshold?: number
     fixed_iterations?: number
     seed?: number
+    allow_nondeterministic_fallback?: boolean
   }
 }
 
@@ -444,7 +599,8 @@ async function detectAnchoringBias(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
-  reproCapture?: ReproCaptureEntry[]
+  reproCapture?: ReproCaptureEntry[],
+  iterationOptions?: IterationExecutionOptions
 ): Promise<HeuristicFindingResult> {
   const testCases = anchoringTestCases
   const testCaseCount = testCases.length
@@ -478,7 +634,13 @@ async function detectAnchoringBias(
     const promptText = promptForIteration?.prompt || testCase.prompt
     
     // Generate response (mock for now, but this is where real LLM calls would go)
-    const output = await runner.generateMockResponse(testCase, iteration)
+    const output = await generateResponseWithRateLimit(
+      runner,
+      testCase,
+      iteration,
+      iterations,
+      iterationOptions
+    )
     const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
 
     if (reproCapture) {
@@ -543,7 +705,8 @@ async function detectLossAversion(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
-  reproCapture?: ReproCaptureEntry[]
+  reproCapture?: ReproCaptureEntry[],
+  iterationOptions?: IterationExecutionOptions
 ): Promise<HeuristicFindingResult> {
   const testCases = lossAversionTestCases
   const testCaseCount = testCases.length
@@ -576,7 +739,13 @@ async function detectLossAversion(
     const promptText = promptForIteration?.prompt || testCase.prompt
 
     // Generate response (mock for now, but this is where real LLM calls would go)
-    const output = await runner.generateMockResponse(testCase, iteration)
+    const output = await generateResponseWithRateLimit(
+      runner,
+      testCase,
+      iteration,
+      iterations,
+      iterationOptions
+    )
     const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
 
     if (reproCapture) {
@@ -642,7 +811,8 @@ async function detectConfirmationBias(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
-  reproCapture?: ReproCaptureEntry[]
+  reproCapture?: ReproCaptureEntry[],
+  iterationOptions?: IterationExecutionOptions
 ): Promise<HeuristicFindingResult> {
   const testCases = confirmationBiasTestCases
   const testCaseCount = testCases.length
@@ -669,7 +839,13 @@ async function detectConfirmationBias(
       p => p.testCaseId === testCase.id && p.iteration === iteration
     )
     const promptText = promptForIteration?.prompt || testCase.prompt
-    const output = await runner.generateMockResponse(testCase, iteration)
+    const output = await generateResponseWithRateLimit(
+      runner,
+      testCase,
+      iteration,
+      iterations,
+      iterationOptions
+    )
     const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
 
     if (reproCapture) {
@@ -726,7 +902,8 @@ async function detectSunkCostFallacy(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
-  reproCapture?: ReproCaptureEntry[]
+  reproCapture?: ReproCaptureEntry[],
+  iterationOptions?: IterationExecutionOptions
 ): Promise<HeuristicFindingResult> {
   const testCases = sunkCostTestCases
   const testCaseCount = testCases.length
@@ -753,7 +930,13 @@ async function detectSunkCostFallacy(
       p => p.testCaseId === testCase.id && p.iteration === iteration
     )
     const promptText = promptForIteration?.prompt || testCase.prompt
-    const output = await runner.generateMockResponse(testCase, iteration)
+    const output = await generateResponseWithRateLimit(
+      runner,
+      testCase,
+      iteration,
+      iterations,
+      iterationOptions
+    )
     const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
 
     if (reproCapture) {
@@ -810,7 +993,8 @@ async function detectAvailabilityHeuristic(
   iterations: number,
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
-  reproCapture?: ReproCaptureEntry[]
+  reproCapture?: ReproCaptureEntry[],
+  iterationOptions?: IterationExecutionOptions
 ): Promise<HeuristicFindingResult> {
   const testCases = availabilityHeuristicTestCases
   const testCaseCount = testCases.length
@@ -837,7 +1021,13 @@ async function detectAvailabilityHeuristic(
       p => p.testCaseId === testCase.id && p.iteration === iteration
     )
     const promptText = promptForIteration?.prompt || testCase.prompt
-    const output = await runner.generateMockResponse(testCase, iteration)
+    const output = await generateResponseWithRateLimit(
+      runner,
+      testCase,
+      iteration,
+      iterations,
+      iterationOptions
+    )
     const referenceId = generateTestCaseReferenceId(testCase.id, iteration)
 
     if (reproCapture) {
@@ -1421,16 +1611,33 @@ Deno.serve(async (req) => {
 
       const evaluationStartedAt = new Date().toISOString()
 
-      const determinismMode = body.deterministic?.enabled
+      const providerPolicy = getProviderPolicy(DEFAULT_MODEL_CONFIG.provider)
+
+      let determinismMode = body.deterministic?.enabled
         ? body.deterministic?.level ?? 'adaptive'
         : 'standard'
-      const achievedLevel = determinismMode
+      let achievedLevel = determinismMode
       const seedValue = body.deterministic?.seed
         ?? Number(Deno.env.get('EVALUATION_SEED') ?? Math.floor(Math.random() * 1_000_000_000))
       const parametersUsed = {
         temperature: DEFAULT_MODEL_CONFIG.sampling.temperature,
         top_p: DEFAULT_MODEL_CONFIG.sampling.topP,
         top_k: Number(Deno.env.get('EVALUATION_TOP_K') ?? '') || undefined,
+      }
+
+      if (body.deterministic?.enabled && providerPolicy.determinismSupport === 'none') {
+        const guidanceMessage = `${providerPolicy.displayName} rejected deterministic parameters. ${providerPolicy.determinismGuidance}`
+
+        if (!body.deterministic?.allow_nondeterministic_fallback) {
+          return new Response(JSON.stringify({ error: guidanceMessage, determinism_guidance: providerPolicy.determinismGuidance }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+
+        determinismMode = 'standard'
+        achievedLevel = 'standard'
+        console.warn('Falling back to non-deterministic mode due to provider guidance:', guidanceMessage)
       }
 
       // Fetch and decrypt evidence collection configuration if collector mode is enabled
@@ -1611,6 +1818,8 @@ Deno.serve(async (req) => {
       const capturedEvidence: CapturedEvidence[] = []
       const evaluationRunId = evaluation.id
 
+      const providerScheduler = new ProviderCallScheduler(providerPolicy)
+
       // Capture repro pack metadata without storing raw prompts/outputs
       const reproCaptureEntries: ReproCaptureEntry[] = []
       
@@ -1660,7 +1869,8 @@ Deno.serve(async (req) => {
           iterations: number,
           evidenceCapture?: CapturedEvidence[],
           evaluationRunId?: string,
-          reproCapture?: ReproCaptureEntry[]
+          reproCapture?: ReproCaptureEntry[],
+          iterationOptions?: IterationExecutionOptions
         ) => Promise<HeuristicFindingResult>> = {
           anchoring: detectAnchoringBias,
           loss_aversion: detectLossAversion,
@@ -1668,13 +1878,26 @@ Deno.serve(async (req) => {
           sunk_cost: detectSunkCostFallacy,
           availability_heuristic: detectAvailabilityHeuristic,
         }
-        
+
         // Pass evidence capture array if collector mode is enabled
         const finding = await detectors[heuristicType](
           body.iteration_count,
           evidenceCollector ? capturedEvidence : undefined,
           evaluationRunId,
-          reproCaptureEntries
+          reproCaptureEntries,
+          {
+            scheduler: providerScheduler,
+            onThrottle: async (ctx) => {
+              const message = `Throttling to respect ${ctx.policy.displayName} limits. ETA ${formatDuration(ctx.etaMs)} remaining.`
+              await updateProgress(
+                progressPercent,
+                'detecting',
+                heuristicType,
+                i,
+                message,
+              )
+            }
+          }
         )
         findings.push(finding)
         

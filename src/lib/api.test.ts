@@ -159,6 +159,7 @@ describe('API Module', () => {
               enabled: false,
               level: 'adaptive',
               adaptive_iterations: true,
+              allow_nondeterministic_fallback: true,
             })
           }),
         }

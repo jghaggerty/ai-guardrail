@@ -268,7 +268,7 @@ export async function runFullEvaluation(
 ): Promise<EvaluationRun> {
   onProgress?.(10, 'Creating evaluation...');
 
-  const deterministicConfig = config.deterministic ?? {
+  const deterministicConfig = {
     enabled: false,
     level: 'adaptive' as const,
     adaptiveIterations: true,
@@ -276,6 +276,8 @@ export async function runFullEvaluation(
     maxIterations: undefined,
     stabilityThreshold: undefined,
     fixedIterations: undefined,
+    allowNonDeterministicFallback: true,
+    ...(config.deterministic ?? {}),
   };
 
   // Get the session for auth
@@ -301,6 +303,7 @@ export async function runFullEvaluation(
         max_iterations: deterministicConfig.maxIterations,
         stability_threshold: deterministicConfig.stabilityThreshold,
         fixed_iterations: deterministicConfig.fixedIterations,
+        allow_nondeterministic_fallback: deterministicConfig.allowNonDeterministicFallback ?? true,
       },
     },
   });
