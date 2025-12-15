@@ -53,4 +53,9 @@ export interface EvaluationRun {
   baselineComparison: BaselineData[];
   evidenceReferenceId?: string;
   evidenceStorageType?: EvidenceStorageType;
+  reproPackId?: string;
+  reproPackHash?: string;
+  signature?: string;
+  signingAuthority?: string;
+  reproPackCreatedAt?: Date;
 }
