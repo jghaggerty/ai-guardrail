@@ -36,6 +36,7 @@ import {
   getEncryptionSecret,
 } from './evidence-collectors/decrypt.ts'
 import { createEvidenceCollector } from './evidence-collectors/factory.ts'
+import { computeReproPackHash } from '../utils/repro-pack.ts'
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 const corsHeaders = {
@@ -50,6 +51,16 @@ type ZoneStatus = 'green' | 'yellow' | 'red'
 type ImpactLevel = 'low' | 'medium' | 'high'
 type DifficultyLevel = 'easy' | 'moderate' | 'complex'
 type SigningMode = 'biaslens' | 'customer'
+
+const DEFAULT_MODEL_CONFIG = {
+  provider: Deno.env.get('EVALUATION_MODEL_PROVIDER') || 'biaslens-simulator',
+  modelName: Deno.env.get('EVALUATION_MODEL_NAME') || 'gpt-4o-mini',
+  sampling: {
+    temperature: Number(Deno.env.get('EVALUATION_TEMPERATURE') ?? '0.35'),
+    maxTokens: Number(Deno.env.get('EVALUATION_MAX_TOKENS') ?? '1024'),
+    topP: Number(Deno.env.get('EVALUATION_TOP_P') ?? '1'),
+  },
+}
 
 interface EvaluationRequest {
   ai_system_name: string
@@ -154,6 +165,60 @@ function calculateOverallScore(findings: HeuristicFindingResult[]): number {
   }
   
   return totalWeight > 0 ? totalWeightedScore / totalWeight : 75
+}
+
+function buildReplayInstructions(params: {
+  heuristicTypes: HeuristicType[]
+  iterationCount: number
+  detectorVersion: string
+  evidenceReferenceId?: string | null
+  evidenceStorageType?: string | null
+  replayEntries: ReproCaptureEntry[]
+}) {
+  const uniqueTestCases = new Map<string, HeuristicType>()
+
+  for (const entry of params.replayEntries) {
+    if (!uniqueTestCases.has(entry.testCaseId)) {
+      uniqueTestCases.set(entry.testCaseId, entry.heuristicType)
+    }
+  }
+
+  return {
+    test_suite: {
+      cases: Array.from(uniqueTestCases.entries()).map(([id, heuristic]) => ({
+        id,
+        version: params.detectorVersion,
+        heuristic_type: heuristic,
+      })),
+      iterations: params.iterationCount,
+    },
+    model: {
+      provider: DEFAULT_MODEL_CONFIG.provider,
+      model_name: DEFAULT_MODEL_CONFIG.modelName,
+      sampling_parameters: {
+        temperature: DEFAULT_MODEL_CONFIG.sampling.temperature,
+        top_p: DEFAULT_MODEL_CONFIG.sampling.topP,
+        max_tokens: DEFAULT_MODEL_CONFIG.sampling.maxTokens,
+      },
+    },
+    detector: {
+      version: params.detectorVersion,
+      heuristics: params.heuristicTypes,
+    },
+    evidence: params.evidenceReferenceId
+      ? {
+          reference_id: params.evidenceReferenceId,
+          storage_type: params.evidenceStorageType,
+          link_hint:
+            'Use the reference ID to fetch prompts and outputs from your configured evidence store.',
+        }
+      : undefined,
+    replay_steps: [
+      'Use the test_case_id and iteration to locate the original prompt/output pair.',
+      'Run the same model configuration and sampling parameters listed above.',
+      'Compare output hashes against the repro pack to confirm deterministic replay.',
+    ],
+  }
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -2539,7 +2604,7 @@ Deno.serve(async (req) => {
       const signingMaterial = await resolveSigningMaterial(supabase, teamId)
 
       const reproPackContent = {
-        schema_version: '1.0.0',
+        schema_version: '1.1.0',
         evaluation_run_id: evaluation.id,
         detector_version: FRAMEWORK_VERSION,
         timestamps: {
@@ -2574,6 +2639,14 @@ Deno.serve(async (req) => {
           zone_status: zoneStatus,
         },
         evidence_reference_id: evidenceReferenceId,
+        replay_instructions: buildReplayInstructions({
+          heuristicTypes: body.heuristic_types,
+          iterationCount: body.iteration_count,
+          detectorVersion: FRAMEWORK_VERSION,
+          evidenceReferenceId,
+          evidenceStorageType: evidenceConfig?.storageType,
+          replayEntries: reproCaptureEntries,
+        }),
         signing: {
           mode: signingMaterial.signingMode,
           authority: signingMaterial.signingAuthority,
@@ -2582,8 +2655,7 @@ Deno.serve(async (req) => {
         },
       }
 
-      const serializedReproPack = JSON.stringify(reproPackContent)
-      const contentHash = await sha256Hex(serializedReproPack)
+      const { hash: contentHash } = await computeReproPackHash(reproPackContent)
       const signature = await signHash(signingMaterial.privateKeyPem, contentHash)
 
       const { data: reproPackRecord, error: reproPackError } = await supabase

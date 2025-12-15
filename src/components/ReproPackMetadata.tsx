@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ReproPackVerificationResult } from '@/lib/api';
-import { CalendarClock, CheckCircle2, Download, FileJson, Hash, Link as LinkIcon, Package, ShieldAlert, ShieldCheck, ShieldHalf } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Download, FileJson, Hash, Link as LinkIcon, Package, ShieldAlert, ShieldCheck, ShieldHalf, UploadCloud } from 'lucide-react';
 
 interface ReproPackMetadataProps {
   reproPackId: string;
@@ -16,7 +16,10 @@ interface ReproPackMetadataProps {
   verificationResult?: ReproPackVerificationResult | null;
   onDownload: () => void;
   onVerify: () => void;
+  onUploadVerify?: () => void;
   evidenceReferenceId?: string;
+  uploadedPackName?: string | null;
+  verificationSource?: 'stored' | 'uploaded' | null;
   onCopyEvidence?: (id: string) => void;
 }
 
@@ -31,12 +34,24 @@ export function ReproPackMetadata({
   verificationResult,
   onDownload,
   onVerify,
+  onUploadVerify,
   evidenceReferenceId,
+  uploadedPackName,
+  verificationSource,
   onCopyEvidence,
 }: ReproPackMetadataProps) {
   const truncatedSignature = signature ? `${signature.slice(0, 18)}…` : undefined;
   const evidenceId = verificationResult?.customerEvidenceId || evidenceReferenceId;
   const evidenceUrl = verificationResult?.evidenceUrl;
+  const verificationOrigin = verificationResult?.verificationSource ?? verificationSource ?? null;
+  const replayInstructions = verificationResult?.replayInstructions as
+    | {
+        test_suite?: { cases?: Array<{ id: string; heuristic_type?: string; version?: string }>; iterations?: number };
+        model?: { provider?: string; model_name?: string; sampling_parameters?: Record<string, unknown> };
+        detector?: { version?: string; heuristics?: string[] };
+        evidence?: { reference_id?: string; storage_type?: string; link_hint?: string };
+      }
+    | undefined;
 
   return (
     <Card className="p-4 border-dashed border-primary/30 bg-primary/5">
@@ -94,8 +109,8 @@ export function ReproPackMetadata({
           </div>
 
           {verificationResult && (
-            <div className="flex flex-col gap-2 p-3 bg-background border border-border rounded-md">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-3 p-3 bg-background border border-border rounded-md">
+              <div className="flex items-center gap-2 flex-wrap">
                 {verificationResult.valid ? (
                   <CheckCircle2 className="w-5 h-5 text-green-600" />
                 ) : (
@@ -109,10 +124,47 @@ export function ReproPackMetadata({
                     {verificationResult.signingAuthority}
                   </Badge>
                 )}
+                {verificationOrigin && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {verificationOrigin === 'uploaded' ? 'Uploaded pack' : 'Stored pack'}
+                  </Badge>
+                )}
+                {uploadedPackName && verificationOrigin === 'uploaded' && (
+                  <Badge variant="outline" className="text-[10px]">
+                    {uploadedPackName}
+                  </Badge>
+                )}
               </div>
               {verificationResult.message && (
                 <p className="text-xs text-muted-foreground">{verificationResult.message}</p>
               )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className={`w-4 h-4 ${verificationResult.signatureValid === false ? 'text-destructive' : 'text-green-600'}`} />
+                  <span className="text-muted-foreground">
+                    Signature {verificationResult.signatureValid === false ? 'mismatch' : 'validated'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Hash className={`w-4 h-4 ${verificationResult.hashMatches === false ? 'text-destructive' : 'text-primary'}`} />
+                  <span className="text-muted-foreground">
+                    Hash {verificationResult.hashMatches === false ? 'mismatch' : 'aligned'}
+                  </span>
+                </div>
+              </div>
+
+              {(verificationResult.computedHash || verificationResult.expectedHash) && (
+                <div className="space-y-1 text-[10px] text-muted-foreground">
+                  {verificationResult.expectedHash && (
+                    <p className="font-mono break-all">Expected: {verificationResult.expectedHash}</p>
+                  )}
+                  {verificationResult.computedHash && (
+                    <p className="font-mono break-all">Computed: {verificationResult.computedHash}</p>
+                  )}
+                </div>
+              )}
+
               {evidenceId && (
                 <div className="flex items-center gap-2">
                   <LinkIcon className="w-4 h-4 text-primary" />
@@ -133,6 +185,49 @@ export function ReproPackMetadata({
                     >
                       Customer Evidence ID: {evidenceId}
                     </Button>
+                  )}
+                </div>
+              )}
+
+              {replayInstructions && (
+                <div className="rounded-md border border-dashed border-primary/30 bg-primary/5 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-card-foreground">
+                    <Package className="w-4 h-4 text-primary" />
+                    Replay instructions embedded
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                    {replayInstructions.detector?.version && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Detector {replayInstructions.detector.version}
+                      </Badge>
+                    )}
+                    {typeof replayInstructions.test_suite?.iterations === 'number' && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {replayInstructions.test_suite.iterations} iterations
+                      </Badge>
+                    )}
+                    {replayInstructions.model?.model_name && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Model {replayInstructions.model.model_name}
+                      </Badge>
+                    )}
+                  </div>
+                  {replayInstructions.test_suite?.cases && (
+                    <p className="text-xs text-muted-foreground">
+                      Test cases: {replayInstructions.test_suite.cases.map(tc => tc.id).join(', ')}
+                    </p>
+                  )}
+                  {replayInstructions.model?.sampling_parameters && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Sampling: {Object.entries(replayInstructions.model.sampling_parameters)
+                        .map(([key, value]) => `${key}=${value}`)
+                        .join(', ')}
+                    </p>
+                  )}
+                  {replayInstructions.evidence?.reference_id && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Evidence link: {replayInstructions.evidence.reference_id} ({replayInstructions.evidence.storage_type || 'unknown storage'})
+                    </p>
                   )}
                 </div>
               )}
@@ -158,6 +253,16 @@ export function ReproPackMetadata({
           >
             <ShieldCheck className="w-4 h-4 mr-2" />
             {isVerifying ? 'Verifying...' : 'Verify Signature'}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="justify-start"
+            onClick={() => onUploadVerify?.()}
+            disabled={isVerifying}
+          >
+            <UploadCloud className="w-4 h-4 mr-2" />
+            Upload & Verify
           </Button>
           {!verificationResult && (
             <p className="text-xs text-muted-foreground">

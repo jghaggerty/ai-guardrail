@@ -101,15 +101,31 @@ export interface ReproPackVerificationResult {
   customerEvidenceId?: string;
   evidenceUrl?: string;
   signingAuthority?: string;
+  hashMatches?: boolean;
+  signatureValid?: boolean;
+  expectedHash?: string;
+  computedHash?: string;
+  legacyHash?: string;
+  replayInstructions?: Record<string, unknown>;
+  verificationSource?: 'stored' | 'uploaded';
 }
 
 export interface ReproPackDetails {
   id: string;
   hash?: string;
+  contentHash?: string;
   signature?: string;
   signingAuthority?: string;
   createdAt?: string;
   content?: Record<string, unknown>;
+}
+
+export interface VerifyReproPackPayload {
+  reproPackId?: string;
+  packContent?: Record<string, unknown>;
+  signature?: string;
+  expectedHash?: string;
+  signingAuthority?: string;
 }
 
 // Error class for API errors
@@ -513,6 +529,7 @@ export async function fetchReproPack(reproPackId: string): Promise<ReproPackDeta
   return {
     id: data.id,
     hash: truncateHash(data.content_hash),
+    contentHash: data.content_hash || undefined,
     signature: data.signature || undefined,
     signingAuthority: data.signing_authority || undefined,
     createdAt: data.created_at || undefined,
@@ -523,11 +540,15 @@ export async function fetchReproPack(reproPackId: string): Promise<ReproPackDeta
 /**
  * Verify repro pack signature via Edge Function
  */
-export async function verifyReproPackSignature(reproPackId: string): Promise<ReproPackVerificationResult> {
+export async function verifyReproPackSignature(
+  params: VerifyReproPackPayload | string
+): Promise<ReproPackVerificationResult> {
+  const payload = typeof params === 'string' ? { reproPackId: params } : params;
+
   const { data, error } = await supabase.functions.invoke<ReproPackVerificationResult>(
     'verify-repro-pack-signature',
     {
-      body: { reproPackId }
+      body: payload
     }
   );
 
@@ -540,7 +561,10 @@ export async function verifyReproPackSignature(reproPackId: string): Promise<Rep
     throw new ApiError(500, 'No verification result returned');
   }
 
-  return data;
+  return {
+    ...data,
+    verificationSource: payload.packContent ? 'uploaded' : 'stored'
+  };
 }
 
 // ============================================================================
