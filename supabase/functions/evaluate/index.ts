@@ -66,6 +66,16 @@ interface EvaluationRequest {
   ai_system_name: string
   heuristic_types: HeuristicType[]
   iteration_count: number
+  deterministic?: {
+    enabled: boolean
+    level: 'full' | 'near' | 'adaptive'
+    adaptive_iterations?: boolean
+    min_iterations?: number
+    max_iterations?: number
+    stability_threshold?: number
+    fixed_iterations?: number
+    seed?: number
+  }
 }
 
 interface HeuristicFindingResult {
@@ -1411,6 +1421,18 @@ Deno.serve(async (req) => {
 
       const evaluationStartedAt = new Date().toISOString()
 
+      const determinismMode = body.deterministic?.enabled
+        ? body.deterministic?.level ?? 'adaptive'
+        : 'standard'
+      const achievedLevel = determinismMode
+      const seedValue = body.deterministic?.seed
+        ?? Number(Deno.env.get('EVALUATION_SEED') ?? Math.floor(Math.random() * 1_000_000_000))
+      const parametersUsed = {
+        temperature: DEFAULT_MODEL_CONFIG.sampling.temperature,
+        top_p: DEFAULT_MODEL_CONFIG.sampling.topP,
+        top_k: Number(Deno.env.get('EVALUATION_TOP_K') ?? '') || undefined,
+      }
+
       // Fetch and decrypt evidence collection configuration if collector mode is enabled
       // Error handling: If any step fails, fall back to standard mode and continue evaluation
       let evidenceCollector: EvidenceCollector | null = null
@@ -1525,6 +1547,11 @@ Deno.serve(async (req) => {
           ai_system_name: body.ai_system_name,
           heuristic_types: body.heuristic_types,
           iteration_count: body.iteration_count,
+          determinism_mode: determinismMode,
+          seed_value: seedValue,
+          iterations_run: body.iteration_count,
+          achieved_level: achievedLevel,
+          parameters_used: parametersUsed,
           status: 'running',
         })
         .select()
@@ -1654,9 +1681,26 @@ Deno.serve(async (req) => {
         // Small delay to allow realtime updates to propagate
         await new Promise(resolve => setTimeout(resolve, 100))
       }
-      
+
       console.log(`Captured ${capturedEvidence.length} evidence entries during evaluation`)
-      
+
+      const perIterationResults = capturedEvidence.map((entry) => ({
+        test_case_id: entry.testCaseId,
+        iteration: entry.iteration,
+        heuristic_type: entry.heuristicType,
+        reference_id: entry.referenceId,
+        timestamp: entry.timestamp,
+      }))
+
+      const severityScores = findings.map(f => f.severity_score)
+      const confidenceIntervals = {
+        overall_score: calculateConfidenceInterval95(severityScores),
+        heuristics: findings.reduce<Record<string, [number, number]>>((acc, finding) => {
+          acc[finding.heuristic_type] = calculateConfidenceInterval95([finding.severity_score])
+          return acc
+        }, {}),
+      }
+
       // Audit log: Evidence captured
       if (capturedEvidence.length > 0 && evidenceCollector) {
         auditLog({
@@ -2013,6 +2057,15 @@ Deno.serve(async (req) => {
               reference_id: referenceInfo.referenceId, // Unique reference ID (includes iteration: test-case-{testCaseId}-{iteration}-{uuid})
               storage_location: referenceInfo.storageLocation, // Full path to stored evidence (e.g., s3://bucket/key)
               storage_type: referenceInfo.storageType, // Storage system type (s3, splunk, or elk)
+              determinism_mode: determinismMode,
+              seed_value: seedValue,
+              iterations_run: body.iteration_count,
+              achieved_level: achievedLevel,
+              parameters_used: parametersUsed,
+              confidence_intervals: confidenceIntervals,
+              per_iteration_results: perIterationResults.filter(
+                (result) => result.test_case_id === (referenceInfo.testCaseId || testCaseId)
+              ),
             }))
             
             console.log(
@@ -2310,13 +2363,22 @@ Deno.serve(async (req) => {
               try {
                 // Create detailed per-test-case reference records
                 // Each stored reference corresponds to one test case iteration
-                const referencesToInsert = storedReferences.map(({ referenceInfo, testCaseId }) => ({
-                  evaluation_id: evaluation.id,
-                  test_case_id: referenceInfo.testCaseId || testCaseId, // Test case identifier
-                  reference_id: referenceInfo.referenceId, // Unique reference ID (includes iteration info)
-                  storage_location: referenceInfo.storageLocation, // Full path to stored evidence
-                  storage_type: referenceInfo.storageType, // Storage system type (s3, splunk, or elk)
-                }))
+            const referencesToInsert = storedReferences.map(({ referenceInfo, testCaseId }) => ({
+              evaluation_id: evaluation.id,
+              test_case_id: referenceInfo.testCaseId || testCaseId, // Test case identifier
+              reference_id: referenceInfo.referenceId, // Unique reference ID (includes iteration info)
+              storage_location: referenceInfo.storageLocation, // Full path to stored evidence
+              storage_type: referenceInfo.storageType, // Storage system type (s3, splunk, or elk)
+              determinism_mode: determinismMode,
+              seed_value: seedValue,
+              iterations_run: body.iteration_count,
+              achieved_level: achievedLevel,
+              parameters_used: parametersUsed,
+              confidence_intervals: confidenceIntervals,
+              per_iteration_results: perIterationResults.filter(
+                (result) => result.test_case_id === (referenceInfo.testCaseId || testCaseId)
+              ),
+            }))
                 
                 console.log(
                   `[Async] Storing ${referencesToInsert.length} detailed per-test-case references for granular traceability`
@@ -2534,11 +2596,25 @@ Deno.serve(async (req) => {
         completed_at: string
         evidence_reference_id?: string
         evidence_storage_type?: 's3' | 'splunk' | 'elk'
+        determinism_mode?: string
+        seed_value?: number
+        iterations_run?: number
+        achieved_level?: string
+        parameters_used?: Record<string, number | undefined>
+        confidence_intervals?: Record<string, unknown>
+        per_iteration_results?: Array<Record<string, unknown>>
       } = {
         status: 'completed',
         overall_score: overallScore,
         zone_status: zoneStatus,
         completed_at: completionTimestamp,
+        determinism_mode: determinismMode,
+        seed_value: seedValue,
+        iterations_run: body.iteration_count,
+        achieved_level: achievedLevel,
+        parameters_used: parametersUsed,
+        confidence_intervals: confidenceIntervals,
+        per_iteration_results: perIterationResults,
       }
       
       // Add evidence reference ID and storage type if collector mode was used and evidence was stored
@@ -2702,6 +2778,13 @@ Deno.serve(async (req) => {
           completed_at: string
           overall_score: number
           zone_status: ZoneStatus
+          determinism_mode: string
+          seed_value: number
+          iterations_run: number
+          achieved_level: string
+          parameters_used: Record<string, number | undefined>
+          confidence_intervals: Record<string, unknown>
+          per_iteration_results: Array<Record<string, unknown>>
           evidence_storage_status?: 'processing' | 'completed'
         }
         findings: unknown[]
@@ -2725,6 +2808,13 @@ Deno.serve(async (req) => {
           completed_at: completionTimestamp,
           overall_score: overallScore,
           zone_status: zoneStatus,
+          determinism_mode: determinismMode,
+          seed_value: seedValue,
+          iterations_run: body.iteration_count,
+          achieved_level: achievedLevel,
+          parameters_used: parametersUsed,
+          confidence_intervals: confidenceIntervals,
+          per_iteration_results: perIterationResults,
         },
         findings: finalFindings || [],
         recommendations: finalRecs || [],

@@ -67,4 +67,15 @@ export interface EvaluationRun {
   signature?: string;
   signingAuthority?: string;
   reproPackCreatedAt?: Date;
+  determinismMode?: string;
+  seedValue?: number;
+  iterationsRun?: number;
+  achievedLevel?: string;
+  parametersUsed?: {
+    temperature?: number;
+    top_p?: number;
+    top_k?: number;
+  };
+  confidenceIntervals?: Record<string, unknown>;
+  perIterationResults?: Array<Record<string, unknown>>;
 }

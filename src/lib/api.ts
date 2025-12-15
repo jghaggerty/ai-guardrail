@@ -24,6 +24,13 @@ interface ApiEvaluationResponse {
   zone_status: ZoneStatus | null;
   evidence_reference_id?: string | null;
   evidence_storage_type?: EvidenceStorageType | null;
+  determinism_mode?: string | null;
+  seed_value?: number | null;
+  iterations_run?: number | null;
+  achieved_level?: string | null;
+  parameters_used?: Record<string, number | undefined> | null;
+  confidence_intervals?: Record<string, unknown> | null;
+  per_iteration_results?: Array<Record<string, unknown>> | null;
 }
 
 interface ApiHeuristicFinding {
@@ -340,6 +347,13 @@ export async function runFullEvaluation(
     baselineComparison: baselineData,
     evidenceReferenceId: data.evaluation.evidence_reference_id || undefined,
     evidenceStorageType: data.evaluation.evidence_storage_type || undefined,
+    determinismMode: data.evaluation.determinism_mode || undefined,
+    seedValue: data.evaluation.seed_value || undefined,
+    iterationsRun: data.evaluation.iterations_run || undefined,
+    achievedLevel: data.evaluation.achieved_level || undefined,
+    parametersUsed: data.evaluation.parameters_used || undefined,
+    confidenceIntervals: data.evaluation.confidence_intervals || undefined,
+    perIterationResults: data.evaluation.per_iteration_results || undefined,
     ...reproPackMetadata,
   };
 }
@@ -521,6 +535,13 @@ export async function loadEvaluationDetails(evaluationId: string): Promise<Evalu
     baselineComparison: baselineData,
     evidenceReferenceId: evaluation.evidence_reference_id || undefined,
     evidenceStorageType: (evaluation.evidence_storage_type as EvidenceStorageType | null) || undefined,
+    determinismMode: evaluation.determinism_mode || undefined,
+    seedValue: evaluation.seed_value || undefined,
+    iterationsRun: evaluation.iterations_run || undefined,
+    achievedLevel: evaluation.achieved_level || undefined,
+    parametersUsed: evaluation.parameters_used as Record<string, number | undefined> | null || undefined,
+    confidenceIntervals: evaluation.confidence_intervals as Record<string, unknown> | null || undefined,
+    perIterationResults: evaluation.per_iteration_results as Array<Record<string, unknown>> | null || undefined,
     ...reproPackMetadata,
   };
 }
