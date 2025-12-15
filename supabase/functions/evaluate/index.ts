@@ -1381,6 +1381,25 @@ Deno.serve(async (req) => {
       if (evidenceCollector && capturedEvidence.length > 0 && evidenceConfig && !useAsyncProcessing) {
         console.log(`Storing ${capturedEvidence.length} evidence entries in customer storage system...`)
         
+        // Batch processing configuration
+        // Process evidence in batches to avoid overwhelming storage systems
+        // Batch size is adaptive based on storage type to optimize for different rate limits
+        const getBatchSize = (storageType: 's3' | 'splunk' | 'elk'): number => {
+          switch (storageType) {
+            case 's3':
+              return 25 // S3 can typically handle larger batches
+            case 'splunk':
+              return 15 // Splunk may have stricter rate limits
+            case 'elk':
+              return 20 // ELK/Elasticsearch standard batch size
+            default:
+              return 20 // Default fallback
+          }
+        }
+        
+        const BATCH_SIZE = getBatchSize(evidenceConfig.storageType)
+        const totalBatches = Math.ceil(capturedEvidence.length / BATCH_SIZE)
+        
         auditLog({
           event: 'evidence_storage_started',
           timestamp: new Date().toISOString(),
@@ -1406,25 +1425,6 @@ Deno.serve(async (req) => {
         let rateLimitEncountered = false
         let lastRateLimitRetryAfter: number | null = null
         let consecutiveRateLimitErrors = 0
-        
-        // Batch processing configuration
-        // Process evidence in batches to avoid overwhelming storage systems
-        // Batch size is adaptive based on storage type to optimize for different rate limits
-        const getBatchSize = (storageType: 's3' | 'splunk' | 'elk'): number => {
-          switch (storageType) {
-            case 's3':
-              return 25 // S3 can typically handle larger batches
-            case 'splunk':
-              return 15 // Splunk may have stricter rate limits
-            case 'elk':
-              return 20 // ELK/Elasticsearch standard batch size
-            default:
-              return 20 // Default fallback
-          }
-        }
-        
-        const BATCH_SIZE = getBatchSize(evidenceConfig.storageType)
-        const totalBatches = Math.ceil(capturedEvidence.length / BATCH_SIZE)
         
         // Base delay between batches (ms)
         // Will be increased if rate limits are encountered
