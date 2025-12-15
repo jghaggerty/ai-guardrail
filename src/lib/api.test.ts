@@ -1,6 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { HeuristicType, SeverityLevel } from '@/types/bias';
 
+// Create a chainable mock for Supabase query builder
+const createChainableMock = () => {
+  const chainable: any = {
+    select: vi.fn(() => chainable),
+    eq: vi.fn(() => chainable),
+    not: vi.fn(() => chainable),
+    order: vi.fn(() => chainable),
+    limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
+    single: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+  };
+  return chainable;
+};
+
 // Mock the Supabase client
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -10,17 +24,7 @@ vi.mock('@/integrations/supabase/client', () => ({
     functions: {
       invoke: vi.fn(),
     },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          order: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
-          })),
-          single: vi.fn(() => Promise.resolve({ data: null, error: null })),
-          maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
-        })),
-      })),
-    })),
+    from: vi.fn(() => createChainableMock()),
   },
 }));
 
