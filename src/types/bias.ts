@@ -39,6 +39,15 @@ export interface EvaluationConfig {
   selectedHeuristics: HeuristicType[];
   iterations: number;
   systemName: string;
+  deterministic?: {
+    enabled: boolean;
+    level: 'full' | 'near' | 'adaptive';
+    adaptiveIterations: boolean;
+    minIterations?: number;
+    maxIterations?: number;
+    stabilityThreshold?: number;
+    fixedIterations?: number;
+  };
 }
 
 export interface EvaluationRun {

@@ -148,13 +148,21 @@ describe('API Module', () => {
       });
 
       // Verify the edge function was called with correct body
-      expect(supabase.functions.invoke).toHaveBeenCalledWith('evaluate', {
-        body: {
-          ai_system_name: 'test-system',
-          heuristic_types: ['anchoring', 'confirmation_bias'],
-          iteration_count: 100,
-        },
-      });
+      expect(supabase.functions.invoke).toHaveBeenCalledWith(
+        'evaluate',
+        {
+          body: expect.objectContaining({
+            ai_system_name: 'test-system',
+            heuristic_types: ['anchoring', 'confirmation_bias'],
+            iteration_count: 100,
+            deterministic: expect.objectContaining({
+              enabled: false,
+              level: 'adaptive',
+              adaptive_iterations: true,
+            })
+          }),
+        }
+      );
 
       // Verify the response is transformed correctly
       expect(result.id).toBe('eval-123');

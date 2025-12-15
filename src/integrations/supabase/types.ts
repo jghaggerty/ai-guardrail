@@ -106,16 +106,23 @@ export type Database = {
         Row: {
           alert_emails: string[] | null
           alert_threshold: string | null
+          adaptive_iterations: boolean | null
           confidence_interval: number | null
           created_at: string
+          deterministic_enabled: boolean | null
+          determinism_level: string | null
+          fixed_iterations: number | null
           id: string
           keep_temperature_constant: boolean | null
+          max_iterations: number | null
+          min_iterations: number | null
           protected_attributes: string[] | null
           report_emails: string[] | null
           sample_size: number | null
           schedule_day: number | null
           schedule_frequency: string | null
           schedule_time: string | null
+          stability_threshold: number | null
           selected_heuristics: string[] | null
           team_id: string
           temperature: number | null
@@ -125,16 +132,23 @@ export type Database = {
         Insert: {
           alert_emails?: string[] | null
           alert_threshold?: string | null
+          adaptive_iterations?: boolean | null
           confidence_interval?: number | null
           created_at?: string
+          deterministic_enabled?: boolean | null
+          determinism_level?: string | null
+          fixed_iterations?: number | null
           id?: string
           keep_temperature_constant?: boolean | null
+          max_iterations?: number | null
+          min_iterations?: number | null
           protected_attributes?: string[] | null
           report_emails?: string[] | null
           sample_size?: number | null
           schedule_day?: number | null
           schedule_frequency?: string | null
           schedule_time?: string | null
+          stability_threshold?: number | null
           selected_heuristics?: string[] | null
           team_id: string
           temperature?: number | null
@@ -144,16 +158,23 @@ export type Database = {
         Update: {
           alert_emails?: string[] | null
           alert_threshold?: string | null
+          adaptive_iterations?: boolean | null
           confidence_interval?: number | null
           created_at?: string
+          deterministic_enabled?: boolean | null
+          determinism_level?: string | null
+          fixed_iterations?: number | null
           id?: string
           keep_temperature_constant?: boolean | null
+          max_iterations?: number | null
+          min_iterations?: number | null
           protected_attributes?: string[] | null
           report_emails?: string[] | null
           sample_size?: number | null
           schedule_day?: number | null
           schedule_frequency?: string | null
           schedule_time?: string | null
+          stability_threshold?: number | null
           selected_heuristics?: string[] | null
           team_id?: string
           temperature?: number | null

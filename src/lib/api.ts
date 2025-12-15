@@ -261,6 +261,16 @@ export async function runFullEvaluation(
 ): Promise<EvaluationRun> {
   onProgress?.(10, 'Creating evaluation...');
 
+  const deterministicConfig = config.deterministic ?? {
+    enabled: false,
+    level: 'adaptive' as const,
+    adaptiveIterations: true,
+    minIterations: undefined,
+    maxIterations: undefined,
+    stabilityThreshold: undefined,
+    fixedIterations: undefined,
+  };
+
   // Get the session for auth
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   
@@ -276,6 +286,15 @@ export async function runFullEvaluation(
       ai_system_name: config.systemName,
       heuristic_types: config.selectedHeuristics.map(mapFrontendHeuristicType),
       iteration_count: config.iterations,
+      deterministic: {
+        enabled: deterministicConfig.enabled,
+        level: deterministicConfig.level,
+        adaptive_iterations: deterministicConfig.adaptiveIterations,
+        min_iterations: deterministicConfig.minIterations,
+        max_iterations: deterministicConfig.maxIterations,
+        stability_threshold: deterministicConfig.stabilityThreshold,
+        fixed_iterations: deterministicConfig.fixedIterations,
+      },
     },
   });
 
@@ -308,7 +327,10 @@ export async function runFullEvaluation(
 
   return {
     id: data.evaluation.id,
-    config,
+    config: {
+      ...config,
+      deterministic: deterministicConfig,
+    },
     status: data.evaluation.status === 'completed' ? 'completed' : 'failed',
     progress: 100,
     findings,

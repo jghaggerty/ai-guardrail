@@ -9,7 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock, Play, ExternalLink, Database } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ArrowLeft, Plus, Pencil, Trash2, Bot, TestTube, CheckCircle2, XCircle, Eye, EyeOff, Key, Loader2, Wifi, WifiOff, Clock, CalendarClock, Play, ExternalLink, Database, AlertTriangle, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { addDays, addWeeks, addMonths, formatDistanceToNow, isPast } from 'date-fns';
@@ -59,6 +61,13 @@ interface EvaluationSettings {
   sample_size: number;
   temperature: number;
   confidence_interval: number;
+  deterministic_enabled?: boolean;
+  determinism_level?: 'full' | 'near' | 'adaptive';
+  adaptive_iterations?: boolean;
+  min_iterations?: number;
+  max_iterations?: number;
+  stability_threshold?: number;
+  fixed_iterations?: number;
 }
 
 const PROVIDERS = ['OpenAI', 'Anthropic', 'Google', 'Meta', 'DeepSeek', 'Azure', 'AWS Bedrock', 'Custom'];
@@ -80,6 +89,17 @@ const TEST_SUITE_OPTIONS = [
   { value: 'consistency', label: 'Consistency Analysis' },
   { value: 'hallucination', label: 'Hallucination Detection' }
 ];
+
+const DETERMINISM_SUPPORT: Record<string, 'full' | 'partial' | 'none'> = {
+  'OpenAI': 'full',
+  'Azure': 'full',
+  'Anthropic': 'partial',
+  'Google': 'partial',
+  'Meta': 'partial',
+  'DeepSeek': 'partial',
+  'AWS Bedrock': 'partial',
+  'Custom': 'none'
+};
 
 const Settings = () => {
   const { user } = useAuth();
@@ -163,7 +183,16 @@ const Settings = () => {
             .single();
 
           if (settings) {
-            setEvalSettings(settings as EvaluationSettings);
+            setEvalSettings({
+              ...(settings as EvaluationSettings),
+              deterministic_enabled: settings.deterministic_enabled ?? false,
+              determinism_level: (settings.determinism_level as EvaluationSettings['determinism_level']) || 'adaptive',
+              adaptive_iterations: settings.adaptive_iterations ?? true,
+              min_iterations: settings.min_iterations ?? 3,
+              max_iterations: settings.max_iterations ?? 20,
+              stability_threshold: settings.stability_threshold ?? 0.9,
+              fixed_iterations: settings.fixed_iterations ?? 5,
+            });
           }
         }
       } catch (error) {
@@ -437,16 +466,52 @@ const Settings = () => {
     }
   };
 
+  const handleUpdateDeterministicSettings = async (updates: Partial<EvaluationSettings>, message = 'Deterministic settings updated') => {
+    if (!evalSettings) return;
+
+    try {
+      const { error } = await supabase
+        .from('evaluation_settings')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', evalSettings.id);
+
+      if (error) throw error;
+
+      setEvalSettings(prev => prev ? { ...prev, ...updates } : prev);
+      toast.success(message);
+    } catch (error) {
+      console.error('Error updating deterministic settings:', error);
+      toast.error('Failed to update deterministic settings');
+    }
+  };
+
   const toggleTestSuite = (suite: string) => {
     if (!evalSettings) return;
-    
+
     const current = evalSettings.test_suites || [];
     const updated = current.includes(suite)
       ? current.filter(s => s !== suite)
       : [...current, suite];
-    
+
     handleUpdateTestSuites(updated);
   };
+
+  const deterministicEnabled = evalSettings?.deterministic_enabled ?? false;
+  const determinismLevel = evalSettings?.determinism_level || 'adaptive';
+  const adaptiveIterations = evalSettings?.adaptive_iterations ?? true;
+  const unsupportedConfigs = llmConfigs.filter(config => {
+    const support = DETERMINISM_SUPPORT[config.provider] ?? 'none';
+    return support === 'none';
+  });
+  const partialConfigs = llmConfigs.filter(config => {
+    const support = DETERMINISM_SUPPORT[config.provider] ?? 'none';
+    return support === 'partial';
+  });
+  const unsupportedProviders = Array.from(new Set(unsupportedConfigs.map(c => c.provider)));
+  const partialProviders = Array.from(new Set(partialConfigs.map(c => c.provider)));
 
   if (loading) {
     return (
@@ -830,6 +895,153 @@ const Settings = () => {
                     <p className="text-lg font-semibold text-card-foreground">{(evalSettings.confidence_interval * 100).toFixed(0)}%</p>
                   </div>
                 </div>
+              </Card>
+            )}
+
+            {evalSettings && (
+              <Card className="p-6 space-y-6">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-card-foreground">Deterministic Replay</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Control deterministic replay and adaptive iteration policies for all evaluations.
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Info className="w-4 h-4" />
+                      <span>Applies to both scheduled and manual runs.</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-card-foreground">Enable replay</p>
+                      <p className="text-xs text-muted-foreground">Use seeds and fixed sampling</p>
+                    </div>
+                    <Switch
+                      checked={deterministicEnabled}
+                      onCheckedChange={(checked) => handleUpdateDeterministicSettings({ deterministic_enabled: checked })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Determinism level</Label>
+                    <Select
+                      value={determinismLevel}
+                      onValueChange={(value) =>
+                        handleUpdateDeterministicSettings({ determinism_level: value as EvaluationSettings['determinism_level'] })
+                      }
+                      disabled={!deterministicEnabled}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full">Full (seeded)</SelectItem>
+                        <SelectItem value="near">Near-deterministic</SelectItem>
+                        <SelectItem value="adaptive">Adaptive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Full uses provider seeds when available; near-deterministic runs multiple passes for stability.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Adaptive iterations</Label>
+                      <Switch
+                        checked={adaptiveIterations}
+                        onCheckedChange={(checked) => handleUpdateDeterministicSettings({ adaptive_iterations: checked })}
+                        disabled={!deterministicEnabled}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Automatically increase iterations until stability threshold is met.
+                    </p>
+                  </div>
+                </div>
+
+                {deterministicEnabled && adaptiveIterations && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Minimum iterations</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={evalSettings.min_iterations}
+                        onChange={(e) =>
+                          handleUpdateDeterministicSettings({ min_iterations: Math.max(1, Number(e.target.value) || 1) })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Maximum iterations</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={evalSettings.max_iterations}
+                        onChange={(e) =>
+                          handleUpdateDeterministicSettings({ max_iterations: Math.max(1, Number(e.target.value) || 1) })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Stability threshold</Label>
+                      <Input
+                        type="number"
+                        step={0.05}
+                        min={0}
+                        max={1}
+                        value={evalSettings.stability_threshold}
+                        onChange={(e) =>
+                          handleUpdateDeterministicSettings({
+                            stability_threshold: Math.min(1, Math.max(0, Number(e.target.value) || 0))
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {deterministicEnabled && !adaptiveIterations && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Fixed iterations</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={evalSettings.fixed_iterations}
+                        onChange={(e) =>
+                          handleUpdateDeterministicSettings({ fixed_iterations: Math.max(1, Number(e.target.value) || 1) })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">Use a static iteration count for every replay.</p>
+                    </div>
+                  </div>
+                )}
+
+                {deterministicEnabled && unsupportedProviders.length > 0 && (
+                  <Alert variant="destructive" className="border-red-500 bg-red-50 dark:bg-red-950/30">
+                    <AlertTriangle className="w-4 h-4" />
+                    <AlertTitle className="flex items-center gap-2">
+                      Providers do not support determinism
+                    </AlertTitle>
+                    <AlertDescription className="text-sm">
+                      {unsupportedProviders.join(', ')} cannot apply deterministic seeds. These models will run in standard mode.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {deterministicEnabled && partialProviders.length > 0 && (
+                  <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <AlertTitle className="flex items-center gap-2">Partial determinism</AlertTitle>
+                    <AlertDescription className="text-sm">
+                      {partialProviders.join(', ')} provide best-effort determinism. Adaptive iterations will collect more samples
+                      to stabilize results.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </Card>
             )}
           </TabsContent>
