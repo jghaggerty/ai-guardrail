@@ -20,6 +20,14 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 export type ConsistencyLevel = 'high' | 'medium' | 'low';
 export type ImpactLevel = 'low' | 'medium' | 'high';
 
+export interface IterationControlConfig {
+  adaptive: boolean;
+  minIterations: number;
+  maxIterations: number;
+  fixedIterations?: number;
+  cvThreshold: number;
+}
+
 // ============================================================================
 // SCORING TYPES
 // ============================================================================
@@ -169,6 +177,8 @@ export interface AggregatedResults {
   confidenceInterval95: [number, number];
   /** How consistent were the scores across iterations */
   consistency: ConsistencyLevel;
+  /** Running statistics across iterations for traceability */
+  iterationStats: IterationStatsSnapshot[];
   /** Human-readable interpretation of results */
   interpretation: string;
   /** Per-dimension aggregated scores */
@@ -180,6 +190,15 @@ export interface AggregatedResults {
   }>;
   /** All individual results for detailed analysis */
   rawResults: TestResult[];
+}
+
+export interface IterationStatsSnapshot {
+  iteration: number;
+  mean: number;
+  stdDev: number;
+  confidenceInterval95: [number, number];
+  coefficientOfVariation: number;
+  timestamp: string;
 }
 
 /**
@@ -212,6 +231,8 @@ export interface TestConfiguration {
   biasTypes: BiasType[];
   /** Number of iterations per test case */
   testIterations: number;
+  /** Optional adaptive iteration settings */
+  iterationControl?: IterationControlConfig;
   /** Filter tests by difficulty */
   difficulty: Difficulty[];
   /** Random seed for reproducibility (optional) */
@@ -340,7 +361,8 @@ export interface ITestRunner {
 
   /** Aggregate results across iterations */
   aggregateResults(
-    results: TestResult[]
+    results: TestResult[],
+    iterationStats?: IterationStatsSnapshot[]
   ): Promise<AggregatedResults>;
 
   /** Generate final report */
@@ -355,7 +377,7 @@ export interface ITestRunner {
  */
 export interface IResultsAggregator {
   /** Aggregate a set of test results */
-  aggregate(results: TestResult[]): AggregatedResults;
+  aggregate(results: TestResult[], iterationStats?: IterationStatsSnapshot[]): AggregatedResults;
 
   /** Generate summary by bias type */
   summarizeByBiasType(

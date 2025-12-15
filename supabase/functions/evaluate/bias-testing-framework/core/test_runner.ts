@@ -17,6 +17,8 @@ import type {
   TestReport,
   TestSuiteOutput,
   ITestRunner,
+  IterationControlConfig,
+  IterationStatsSnapshot,
 } from './types.ts';
 
 import { anchoringTestCases } from '../tests/anchoring/test_cases.ts';
@@ -34,6 +36,12 @@ import {
   calculateMax,
   interpretBiasScore,
 } from '../utils/statistics.ts';
+import {
+  coefficientOfVariation,
+  confidenceInterval95,
+  mean,
+  standardDeviation,
+} from '../utils/basic_stats.ts';
 
 // Framework version
 const FRAMEWORK_VERSION = '1.0.0';
@@ -84,6 +92,53 @@ export class TestRunner implements ITestRunner {
   constructor(config: TestConfiguration) {
     this.config = config;
     this.rng = new SeededRandom(config.randomSeed ?? Date.now());
+  }
+
+  private resolveIterationControl(): IterationControlConfig {
+    const defaults: IterationControlConfig = {
+      adaptive: true,
+      minIterations: Math.min(5, this.config.testIterations),
+      maxIterations: this.config.testIterations,
+      fixedIterations: this.config.testIterations,
+      cvThreshold: 0.05,
+    };
+
+    const provided = this.config.iterationControl ?? {};
+    const merged: IterationControlConfig = {
+      ...defaults,
+      ...provided,
+      minIterations: Math.max(1, provided.minIterations ?? defaults.minIterations),
+      maxIterations: Math.max(provided.maxIterations ?? defaults.maxIterations, provided.minIterations ?? defaults.minIterations),
+      fixedIterations: provided.fixedIterations ?? defaults.fixedIterations,
+    };
+
+    if (merged.maxIterations < merged.minIterations) {
+      merged.maxIterations = merged.minIterations;
+    }
+
+    return merged;
+  }
+
+  private buildIterationSnapshot(
+    iteration: number,
+    scores: number[]
+  ): IterationStatsSnapshot {
+    const meanScore = mean(scores);
+    const sd = standardDeviation(scores);
+    const ci = confidenceInterval95(scores);
+    const cv = coefficientOfVariation(scores);
+
+    return {
+      iteration,
+      mean: Math.round(meanScore * 100) / 100,
+      stdDev: Math.round(sd * 100) / 100,
+      confidenceInterval95: [
+        Math.round(ci[0] * 100) / 100,
+        Math.round(ci[1] * 100) / 100,
+      ],
+      coefficientOfVariation: Math.round(cv * 10000) / 10000,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   /**
@@ -266,7 +321,8 @@ export class TestRunner implements ITestRunner {
    * Aggregate results across multiple iterations.
    */
   async aggregateResults(
-    results: TestResult[]
+    results: TestResult[],
+    iterationStats: IterationStatsSnapshot[] = []
   ): Promise<AggregatedResults> {
     if (results.length === 0) {
       throw new Error('Cannot aggregate empty results');
@@ -310,6 +366,7 @@ export class TestRunner implements ITestRunner {
         Math.round(ci95[1] * 100) / 100,
       ],
       consistency,
+      iterationStats,
       interpretation: interpretBiasScore(meanScore, biasType),
       dimensionScores,
       rawResults: results,
@@ -412,20 +469,25 @@ export class TestRunner implements ITestRunner {
    * Run a complete evaluation (with mock responses for now).
    */
   async runEvaluation(): Promise<TestReport> {
+    const iterationControl = this.resolveIterationControl();
     const testCases = await this.loadTestCases(this.config.biasTypes);
-    const allResults: TestResult[] = [];
+    const aggregatedResults: AggregatedResults[] = [];
 
     for (const testCase of testCases) {
       const testCaseResults: TestResult[] = [];
+      const iterationSnapshots: IterationStatsSnapshot[] = [];
 
-      for (let iteration = 1; iteration <= this.config.testIterations; iteration++) {
-        // Generate mock response (will be replaced with LLM call)
+      const maxIterations = iterationControl.adaptive
+        ? iterationControl.maxIterations
+        : iterationControl.fixedIterations ?? iterationControl.maxIterations;
+      const minIterations = iterationControl.adaptive
+        ? iterationControl.minIterations
+        : maxIterations;
+
+      for (let iteration = 1; iteration <= maxIterations; iteration++) {
         const response = await this.generateMockResponse(testCase, iteration);
-
-        // Score the response
         const biasScore = await this.scoreResponse(testCase, response);
 
-        // Create test result
         const result: TestResult = {
           testCaseId: testCase.id,
           iterationNumber: iteration,
@@ -438,21 +500,22 @@ export class TestRunner implements ITestRunner {
         };
 
         testCaseResults.push(result);
-        allResults.push(result);
+
+        const scoresSoFar = testCaseResults.map((r) => r.overallBiasScore);
+        const snapshot = this.buildIterationSnapshot(iteration, scoresSoFar);
+        iterationSnapshots.push(snapshot);
+
+        if (iterationControl.adaptive && iteration >= minIterations) {
+          if (snapshot.coefficientOfVariation <= iterationControl.cvThreshold) {
+            break;
+          }
+        }
       }
-    }
 
-    // Aggregate results by test case
-    const aggregatedResults: AggregatedResults[] = [];
-    const testCaseIds = [...new Set(allResults.map((r) => r.testCaseId))];
-
-    for (const testCaseId of testCaseIds) {
-      const results = allResults.filter((r) => r.testCaseId === testCaseId);
-      const aggregated = await this.aggregateResults(results);
+      const aggregated = await this.aggregateResults(testCaseResults, iterationSnapshots);
       aggregatedResults.push(aggregated);
     }
 
-    // Generate report
     return this.generateReport(aggregatedResults, this.config);
   }
 

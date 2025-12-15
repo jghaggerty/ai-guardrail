@@ -38,6 +38,13 @@ export {
   calculateWeightedMean,
   statistics,
 } from './utils/statistics.ts';
+export {
+  mean,
+  variance,
+  standardDeviation,
+  confidenceInterval95,
+  coefficientOfVariation,
+} from './utils/basic_stats.ts';
 
 // Validators
 export {
