@@ -357,3 +357,92 @@ export async function removeTeamMember(roleId: string): Promise<boolean> {
 
   return true;
 }
+
+export interface CompanyMember {
+  user_id: string;
+  full_name: string | null;
+  team_id: string;
+  team_name: string;
+  team_role: 'owner' | 'admin' | 'evaluator' | 'viewer';
+  company_role: string | null;
+  created_at: string;
+}
+
+/**
+ * Get all members across all teams in a company
+ */
+export async function getCompanyMembers(companyId: string): Promise<CompanyMember[]> {
+  // First get all teams in the company
+  const { data: teams, error: teamsError } = await supabase
+    .from('teams')
+    .select('id, name')
+    .eq('company_id', companyId);
+
+  if (teamsError || !teams || teams.length === 0) {
+    console.error('Error fetching company teams:', teamsError);
+    return [];
+  }
+
+  const teamIds = teams.map(t => t.id);
+  const teamMap = new Map(teams.map(t => [t.id, t.name]));
+
+  // Get all user_roles for those teams
+  const { data: roles, error: rolesError } = await supabase
+    .from('user_roles')
+    .select('user_id, team_id, role, created_at')
+    .in('team_id', teamIds);
+
+  if (rolesError || !roles) {
+    console.error('Error fetching user roles:', rolesError);
+    return [];
+  }
+
+  // Get unique user IDs
+  const userIds = [...new Set(roles.map(r => r.user_id))];
+
+  // Fetch profiles
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', userIds);
+
+  if (profilesError) {
+    console.error('Error fetching profiles:', profilesError);
+  }
+
+  const profileMap = new Map((profiles || []).map(p => [p.id, p.full_name]));
+
+  // Fetch company roles
+  const { data: companyRoles, error: companyRolesError } = await supabase
+    .from('company_user_roles')
+    .select('user_id, role')
+    .eq('company_id', companyId)
+    .in('user_id', userIds);
+
+  if (companyRolesError) {
+    console.error('Error fetching company roles:', companyRolesError);
+  }
+
+  const companyRoleMap = new Map((companyRoles || []).map(cr => [cr.user_id, cr.role]));
+
+  // Build the result - one entry per user (pick primary team)
+  const userTeamMap = new Map<string, typeof roles[0]>();
+  for (const role of roles) {
+    const existing = userTeamMap.get(role.user_id);
+    // Prefer owner > admin > evaluator > viewer
+    const priority = { owner: 4, admin: 3, evaluator: 2, viewer: 1 };
+    if (!existing || (priority[role.role as keyof typeof priority] || 0) > (priority[existing.role as keyof typeof priority] || 0)) {
+      userTeamMap.set(role.user_id, role);
+    }
+  }
+
+  return Array.from(userTeamMap.values()).map(role => ({
+    user_id: role.user_id,
+    full_name: profileMap.get(role.user_id) || null,
+    team_id: role.team_id,
+    team_name: teamMap.get(role.team_id) || 'Unknown',
+    team_role: role.role as 'owner' | 'admin' | 'evaluator' | 'viewer',
+    company_role: companyRoleMap.get(role.user_id) || null,
+    created_at: role.created_at,
+  }));
+}
