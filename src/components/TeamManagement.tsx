@@ -53,6 +53,7 @@ import {
   Clock,
   Building2,
   Loader2,
+  Pencil,
 } from 'lucide-react';
 import {
   Team,
@@ -71,6 +72,8 @@ import {
   removeTeamMember,
   getActiveTeamId,
   getCompanyMembers,
+  fetchUserEmails,
+  updateUserProfile,
   Company,
 } from '@/lib/teamApi';
 import { z } from 'zod';
@@ -92,6 +95,7 @@ export function TeamManagement() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
   const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
+  const [memberEmails, setMemberEmails] = useState<Record<string, string>>({});
   const [company, setCompany] = useState<Company | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -99,6 +103,9 @@ export function TeamManagement() {
   // Dialog states
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [createTeamDialogOpen, setCreateTeamDialogOpen] = useState(false);
+  const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<CompanyMember | null>(null);
+  const [editName, setEditName] = useState('');
   const [newTeamName, setNewTeamName] = useState('');
   const [newInviteEmail, setNewInviteEmail] = useState('');
   const [newInviteRole, setNewInviteRole] = useState<'admin' | 'evaluator' | 'viewer'>('evaluator');
@@ -132,6 +139,13 @@ export function TeamManagement() {
         ]);
         setIsAdmin(adminStatus);
         setCompanyMembers(allCompanyMembers);
+        
+        // Fetch emails if user is admin
+        if (adminStatus && allCompanyMembers.length > 0) {
+          const userIds = allCompanyMembers.map(m => m.user_id);
+          const emails = await fetchUserEmails(userIds);
+          setMemberEmails(emails);
+        }
       }
 
       // Load members and invitations for active team
@@ -234,6 +248,35 @@ export function TeamManagement() {
       toast.success(`${memberName} removed from team`);
     } else {
       toast.error('Failed to remove member');
+    }
+  };
+
+  const handleEditMember = (member: CompanyMember) => {
+    setEditingMember(member);
+    setEditName(member.full_name || '');
+    setEditMemberDialogOpen(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editingMember) return;
+    
+    setSubmitting(true);
+    try {
+      const result = await updateUserProfile(editingMember.user_id, editName);
+      if (result.success) {
+        setCompanyMembers(companyMembers.map(m => 
+          m.user_id === editingMember.user_id ? { ...m, full_name: editName } : m
+        ));
+        toast.success('Profile updated');
+        setEditMemberDialogOpen(false);
+        setEditingMember(null);
+      } else {
+        toast.error(result.error || 'Failed to update profile');
+      }
+    } catch (error) {
+      toast.error('Failed to update profile');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -635,10 +678,12 @@ export function TeamManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Member</TableHead>
+                  {isAdmin && <TableHead>Email</TableHead>}
                   <TableHead>Team</TableHead>
                   <TableHead>Team Role</TableHead>
                   <TableHead>Company Role</TableHead>
                   <TableHead>Joined</TableHead>
+                  {isAdmin && <TableHead className="w-[80px]">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -663,6 +708,11 @@ export function TeamManagement() {
                           </div>
                         </div>
                       </TableCell>
+                      {isAdmin && (
+                        <TableCell className="text-muted-foreground">
+                          {memberEmails[member.user_id] || '—'}
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
                           {member.team_name}
@@ -686,6 +736,17 @@ export function TeamManagement() {
                       <TableCell className="text-muted-foreground">
                         {new Date(member.created_at).toLocaleDateString()}
                       </TableCell>
+                      {isAdmin && (
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditMember(member)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
@@ -694,6 +755,67 @@ export function TeamManagement() {
           </CardContent>
         </Card>
       )}
+
+      {/* Edit Member Dialog */}
+      <Dialog open={editMemberDialogOpen} onOpenChange={setEditMemberDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Member</DialogTitle>
+            <DialogDescription>
+              Update member details
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            {editingMember && isAdmin && memberEmails[editingMember.user_id] && (
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <p className="text-sm text-muted-foreground">
+                  {memberEmails[editingMember.user_id]}
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="editName">Full Name</Label>
+              <Input
+                id="editName"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Enter full name"
+              />
+            </div>
+            {editingMember && (
+              <div className="space-y-2">
+                <Label>Current Role</Label>
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const rc = getRoleConfig(editingMember.team_role);
+                    return (
+                      <>
+                        <rc.icon className={`h-4 w-4 ${rc.color}`} />
+                        <span>{rc.label}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+            <Button
+              onClick={handleSaveProfile}
+              disabled={submitting}
+              className="w-full"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
