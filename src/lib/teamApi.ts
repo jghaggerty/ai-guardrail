@@ -361,6 +361,7 @@ export async function removeTeamMember(roleId: string): Promise<boolean> {
 export interface CompanyMember {
   user_id: string;
   full_name: string | null;
+  email?: string;
   team_id: string;
   team_name: string;
   team_role: 'owner' | 'admin' | 'evaluator' | 'viewer';
@@ -445,4 +446,74 @@ export async function getCompanyMembers(companyId: string): Promise<CompanyMembe
     company_role: companyRoleMap.get(role.user_id) || null,
     created_at: role.created_at,
   }));
+}
+
+/**
+ * Fetch user emails (company admins only)
+ */
+export async function fetchUserEmails(userIds: string[]): Promise<Record<string, string>> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session?.session?.access_token) return {};
+
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-user-emails`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.session.access_token}`,
+        },
+        body: JSON.stringify({ userIds }),
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Failed to fetch emails:', await response.text());
+      return {};
+    }
+
+    const data = await response.json();
+    return data.emails || {};
+  } catch (error) {
+    console.error('Error fetching emails:', error);
+    return {};
+  }
+}
+
+/**
+ * Update user profile (own profile or company admin for others)
+ */
+export async function updateUserProfile(
+  targetUserId: string,
+  fullName: string
+): Promise<{ success: boolean; error?: string }> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session?.session?.access_token) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-user-profile`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.session.access_token}`,
+        },
+        body: JSON.stringify({ targetUserId, fullName }),
+      }
+    );
+
+    if (!response.ok) {
+      const data = await response.json();
+      return { success: false, error: data.error || 'Failed to update profile' };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    return { success: false, error: 'Failed to update profile' };
+  }
 }
