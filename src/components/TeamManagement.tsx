@@ -58,6 +58,7 @@ import {
   Team,
   TeamMember,
   TeamInvitation,
+  CompanyMember,
   getUserTeams,
   getTeamMembers,
   getTeamInvitations,
@@ -69,6 +70,8 @@ import {
   updateMemberRole,
   removeTeamMember,
   getActiveTeamId,
+  getCompanyMembers,
+  Company,
 } from '@/lib/teamApi';
 import { z } from 'zod';
 
@@ -88,6 +91,8 @@ export function TeamManagement() {
   const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
+  const [companyMembers, setCompanyMembers] = useState<CompanyMember[]>([]);
+  const [company, setCompany] = useState<Company | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -109,7 +114,7 @@ export function TeamManagement() {
 
     setLoading(true);
     try {
-      const [userTeams, currentActiveId, company] = await Promise.all([
+      const [userTeams, currentActiveId, companyData] = await Promise.all([
         getUserTeams(user.id),
         getActiveTeamId(user.id),
         getUserCompany(user.id),
@@ -118,10 +123,15 @@ export function TeamManagement() {
       setTeams(userTeams);
       setActiveTeamId(currentActiveId);
       
-      if (company) {
-        setCompanyId(company.id);
-        const adminStatus = await isCompanyAdmin(user.id, company.id);
+      if (companyData) {
+        setCompany(companyData);
+        setCompanyId(companyData.id);
+        const [adminStatus, allCompanyMembers] = await Promise.all([
+          isCompanyAdmin(user.id, companyData.id),
+          getCompanyMembers(companyData.id),
+        ]);
         setIsAdmin(adminStatus);
+        setCompanyMembers(allCompanyMembers);
       }
 
       // Load members and invitations for active team
@@ -604,6 +614,83 @@ export function TeamManagement() {
                 )}
               </TabsContent>
             </Tabs>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Company-Wide Members */}
+      {company && companyMembers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              {company.name} — All Organization Members
+            </CardTitle>
+            <CardDescription>
+              All users across all teams in your organization
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Member</TableHead>
+                  <TableHead>Team</TableHead>
+                  <TableHead>Team Role</TableHead>
+                  <TableHead>Company Role</TableHead>
+                  <TableHead>Joined</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {companyMembers.map((member) => {
+                  const roleConfig = getRoleConfig(member.team_role);
+                  const isCurrentUser = member.user_id === user?.id;
+
+                  return (
+                    <TableRow key={member.user_id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {member.full_name || 'Unknown'}
+                              {isCurrentUser && (
+                                <span className="text-muted-foreground ml-2">(you)</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {member.team_name}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <roleConfig.icon className={`h-4 w-4 ${roleConfig.color}`} />
+                          <span>{roleConfig.label}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {member.company_role === 'company_admin' ? (
+                          <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">
+                            Company Admin
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">Member</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(member.created_at).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
