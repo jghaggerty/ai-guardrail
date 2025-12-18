@@ -255,39 +255,57 @@ export type Database = {
       }
       evaluations: {
         Row: {
+          achieved_level: string | null
           ai_system_name: string
           completed_at: string | null
+          confidence_intervals: Json | null
           created_at: string
+          determinism_mode: string | null
           heuristic_types: Json
           id: string
           iteration_count: number
+          iterations_run: number | null
           overall_score: number | null
+          parameters_used: Json | null
+          seed_value: number | null
           status: Database["public"]["Enums"]["evaluation_status"]
           team_id: string | null
           user_id: string | null
           zone_status: Database["public"]["Enums"]["zone_status"] | null
         }
         Insert: {
+          achieved_level?: string | null
           ai_system_name: string
           completed_at?: string | null
+          confidence_intervals?: Json | null
           created_at?: string
+          determinism_mode?: string | null
           heuristic_types: Json
           id?: string
           iteration_count: number
+          iterations_run?: number | null
           overall_score?: number | null
+          parameters_used?: Json | null
+          seed_value?: number | null
           status?: Database["public"]["Enums"]["evaluation_status"]
           team_id?: string | null
           user_id?: string | null
           zone_status?: Database["public"]["Enums"]["zone_status"] | null
         }
         Update: {
+          achieved_level?: string | null
           ai_system_name?: string
           completed_at?: string | null
+          confidence_intervals?: Json | null
           created_at?: string
+          determinism_mode?: string | null
           heuristic_types?: Json
           id?: string
           iteration_count?: number
+          iterations_run?: number | null
           overall_score?: number | null
+          parameters_used?: Json | null
+          seed_value?: number | null
           status?: Database["public"]["Enums"]["evaluation_status"]
           team_id?: string | null
           user_id?: string | null
@@ -298,6 +316,47 @@ export type Database = {
             foreignKeyName: "evaluations_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evidence_collection_configs: {
+        Row: {
+          created_at: string
+          credentials_encrypted: string | null
+          enabled: boolean
+          id: string
+          storage_path: string | null
+          storage_type: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials_encrypted?: string | null
+          enabled?: boolean
+          id?: string
+          storage_path?: string | null
+          storage_type?: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials_encrypted?: string | null
+          enabled?: boolean
+          id?: string
+          storage_path?: string | null
+          storage_type?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_collection_configs_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
             referencedRelation: "teams"
             referencedColumns: ["id"]
           },
