@@ -1,5 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
+// Declare EdgeRuntime for background task processing
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void
+}
+
 // Import bias testing framework
 import {
   TestRunner,
@@ -44,6 +49,11 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
+
+// Handle graceful shutdown - log if function is terminated mid-processing
+addEventListener('beforeunload', (ev: Event & { detail?: { reason?: string } }) => {
+  console.log('[Shutdown] Edge function shutting down due to:', ev.detail?.reason || 'unknown reason')
+})
 
 // Types
 type HeuristicType = 'anchoring' | 'loss_aversion' | 'sunk_cost' | 'confirmation_bias' | 'availability_heuristic'
@@ -1819,39 +1829,65 @@ Deno.serve(async (req) => {
         console.error('Progress record creation error:', progressError)
       }
 
-      // Helper function to update progress
-      const updateProgress = async (
-        percent: number,
-        phase: string,
-        heuristic: string | null,
-        completed: number,
-        message: string
-      ) => {
-        if (progressRecord) {
-          await supabase
-            .from('evaluation_progress')
-            .update({
-              progress_percent: percent,
-              current_phase: phase,
-              current_heuristic: heuristic,
-              tests_completed: completed,
-              message,
-            })
-            .eq('id', progressRecord.id)
-        }
+      // Return immediately and process evaluation in background
+      // This prevents edge function timeout for long-running evaluations
+      const immediateResponse = {
+        evaluation: {
+          id: evaluation.id,
+          ai_system_name: body.ai_system_name,
+          heuristic_types: body.heuristic_types,
+          iteration_count: body.iteration_count,
+          status: 'running',
+          created_at: evaluation.created_at,
+          determinism_mode: determinismMode,
+          seed_value: seedValue,
+          parameters_used: parametersUsed,
+        },
+        message: 'Evaluation started. Subscribe to real-time progress updates.',
+        progress_subscription: {
+          table: 'evaluation_progress',
+          filter: `evaluation_id=eq.${evaluation.id}`,
+        },
       }
 
-      // Initialize evidence capture array if collector mode is enabled
-      const capturedEvidence: CapturedEvidence[] = []
-      const evaluationRunId = evaluation.id
+      // Define the background processing function
+      const runEvaluationInBackground = async () => {
+        try {
+          console.log(`[Background] Starting evaluation processing for ${evaluation.id}`)
 
-      const providerScheduler = new ProviderCallScheduler(providerPolicy)
+          // Helper function to update progress
+          const updateProgress = async (
+            percent: number,
+            phase: string,
+            heuristic: string | null,
+            completed: number,
+            message: string
+          ) => {
+            if (progressRecord) {
+              await supabase
+                .from('evaluation_progress')
+                .update({
+                  progress_percent: percent,
+                  current_phase: phase,
+                  current_heuristic: heuristic,
+                  tests_completed: completed,
+                  message,
+                })
+                .eq('id', progressRecord.id)
+            }
+          }
 
-      // Capture repro pack metadata without storing raw prompts/outputs
-      const reproCaptureEntries: ReproCaptureEntry[] = []
-      
-      // Generate evaluation run reference ID (format: evaluation-run-{uuid})
-      const evaluationRunReferenceId = evidenceCollector 
+          // Initialize evidence capture array if collector mode is enabled
+          const capturedEvidence: CapturedEvidence[] = []
+          const evaluationRunId = evaluation.id
+
+          const providerScheduler = new ProviderCallScheduler(providerPolicy)
+
+          // Capture repro pack metadata without storing raw prompts/outputs
+          const reproCaptureEntries: ReproCaptureEntry[] = []
+          
+          // Generate evaluation run reference ID (format: evaluation-run-{uuid})
+          const evaluationRunReferenceId = evidenceCollector
         ? generateEvaluationRunReferenceId()
         : null
       
@@ -3017,108 +3053,55 @@ Deno.serve(async (req) => {
         throw new Error('Failed to persist repro pack for evaluation run')
       }
 
-      // Update progress: complete
-      await updateProgress(100, 'completed', null, totalHeuristics, 'Evaluation complete!')
+          // Update progress: complete
+          await updateProgress(100, 'completed', null, totalHeuristics, 'Evaluation complete!')
 
-      // Clean up progress record after a short delay
-      setTimeout(async () => {
-        if (progressRecord) {
+          // Clean up progress record after a short delay
+          setTimeout(async () => {
+            if (progressRecord) {
+              await supabase
+                .from('evaluation_progress')
+                .delete()
+                .eq('id', progressRecord.id)
+            }
+          }, 5000)
+
+          console.log(`[Background] Evaluation ${evaluation.id} completed successfully`)
+
+        } catch (backgroundError) {
+          // Handle background processing errors
+          console.error(`[Background] Evaluation ${evaluation.id} failed:`, backgroundError)
+          
+          // Update evaluation status to failed
           await supabase
-            .from('evaluation_progress')
-            .delete()
-            .eq('id', progressRecord.id)
-        }
-      }, 5000)
+            .from('evaluations')
+            .update({
+              status: 'failed',
+            })
+            .eq('id', evaluation.id)
 
-      // Prepare response
-      const responseData: {
-        evaluation: {
-          id: string
-          ai_system_name: string
-          heuristic_types: HeuristicType[]
-          iteration_count: number
-          status: string
-          created_at: string
-          completed_at: string
-          overall_score: number
-          zone_status: ZoneStatus
-          determinism_mode: string
-          seed_value: number
-          iterations_run: number
-          achieved_level: string
-          parameters_used: Record<string, number | undefined>
-          confidence_intervals: Record<string, unknown>
-          per_iteration_results: Array<Record<string, unknown>>
-          evidence_storage_status?: 'processing' | 'completed'
+          // Update progress to show failure
+          if (progressRecord) {
+            await supabase
+              .from('evaluation_progress')
+              .update({
+                progress_percent: 0,
+                current_phase: 'failed',
+                message: backgroundError instanceof Error ? backgroundError.message : 'Evaluation failed unexpectedly',
+              })
+              .eq('id', progressRecord.id)
+          }
         }
-        findings: unknown[]
-        recommendations: unknown[]
-        trends: {
-          data_points: Array<{ timestamp: string; score: number; zone: ZoneStatus }>
-          current_zone: ZoneStatus
-          drift_alert: boolean
-          drift_message: string | null
-        }
-        repro_pack_id?: string
-        repro_pack_hash?: string
-      } = {
-        evaluation: {
-          id: evaluation.id,
-          ai_system_name: body.ai_system_name,
-          heuristic_types: body.heuristic_types,
-          iteration_count: body.iteration_count,
-          status: 'completed',
-          created_at: evaluation.created_at,
-          completed_at: completionTimestamp,
-          overall_score: overallScore,
-          zone_status: zoneStatus,
-          determinism_mode: determinismMode,
-          seed_value: seedValue,
-          iterations_run: body.iteration_count,
-          achieved_level: achievedLevel,
-          parameters_used: parametersUsed,
-          confidence_intervals: confidenceIntervals,
-          per_iteration_results: perIterationResults,
-        },
-        findings: finalFindings || [],
-        recommendations: finalRecs || [],
-        trends: {
-          data_points: trendData,
-          current_zone: zoneStatus,
-          drift_alert: hasDrift,
-          drift_message: driftMessage,
-        },
       }
 
-      if (reproPackRecord) {
-        responseData.repro_pack_id = reproPackRecord.id
-        responseData.repro_pack_hash = truncateHash(contentHash)
-      }
-      
-      // Add evidence storage status if async processing is enabled
-      if (useAsyncProcessing) {
-        responseData.evaluation.evidence_storage_status = 'processing'
-      }
-      
-      // Send response immediately (evidence storage may still be processing in background)
-      const response = new Response(JSON.stringify(responseData), {
+      // Use EdgeRuntime.waitUntil to run processing in background
+      // This allows us to return immediately while processing continues
+      EdgeRuntime.waitUntil(runEvaluationInBackground())
+
+      // Return immediate response with evaluation ID for progress tracking
+      return new Response(JSON.stringify(immediateResponse), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
-      
-      // If async evidence storage is running, ensure it completes
-      // Note: The Deno runtime will keep the function context alive until async tasks complete
-      if (asyncEvidenceStoragePromise) {
-        // Fire-and-forget: Let it complete in background, but ensure errors are logged
-        asyncEvidenceStoragePromise
-          .then(() => {
-            console.log('[Async] Background evidence storage completed successfully')
-          })
-          .catch((error) => {
-            console.error('[Async] Background evidence storage failed:', error)
-          })
-      }
-      
-      return response
     }
 
     // GET /evaluate/:id - Get evaluation with all data
