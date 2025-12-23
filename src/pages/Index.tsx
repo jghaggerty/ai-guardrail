@@ -108,7 +108,10 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
     testsCompleted,
     testsTotal,
     resetProgress,
-    isSubscribed
+    isSubscribed,
+    isTabActive,
+    eta,
+    lastUpdate
   } = useEvaluationProgress({
     onComplete: () => {
       console.log('Evaluation completed via realtime');
@@ -389,6 +392,15 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
       <main className="container mx-auto px-6 py-8">
         {isRunning && (
           <Card className="p-6 mb-8">
+            {/* Background running indicator when tab is inactive */}
+            {!isTabActive && (
+              <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center gap-3">
+                <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
+                <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                  Still running in background — analysis continues while you're away
+                </p>
+              </div>
+            )}
             <div className="flex items-center gap-4 mb-4">
               <Activity className="w-5 h-5 text-primary animate-pulse" />
               <div className="flex-1">
@@ -406,6 +418,11 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
               </div>
               <div className="text-right">
                 <Badge variant="outline" className="mb-1">{displayProgress}%</Badge>
+                {eta && (
+                  <p className="text-xs text-primary font-medium">
+                    {eta}
+                  </p>
+                )}
                 {testsTotal > 0 && (
                   <p className="text-xs text-muted-foreground">
                     {testsCompleted}/{testsTotal} tests
@@ -414,12 +431,19 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
               </div>
             </div>
             <Progress value={displayProgress} className="h-2" />
-            {isSubscribed && (
-              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Live updates enabled
-              </p>
-            )}
+            <div className="flex items-center justify-between mt-2">
+              {isSubscribed && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  Live updates enabled
+                </p>
+              )}
+              {lastUpdate && (
+                <p className="text-xs text-muted-foreground">
+                  Last update: {lastUpdate}
+                </p>
+              )}
+            </div>
             {(testsTotal > 0 || activeConfig?.deterministic?.enabled || (activeConfig?.iterations ?? 0) > 1) && (
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
