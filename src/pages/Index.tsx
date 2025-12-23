@@ -18,7 +18,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { runFullEvaluation, ApiError, fetchReproPack, verifyReproPackSignature, ReproPackVerificationResult } from '@/lib/api';
-import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History, X, Copy, Check, Info, Database, Settings, Users } from 'lucide-react';
+import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History, X, Copy, Check, Info, Database, Settings, Users, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun | null } = {}) => {
@@ -111,7 +111,9 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
     isSubscribed,
     isTabActive,
     eta,
-    lastUpdate
+    lastUpdate,
+    notificationPermission,
+    requestNotificationPermission
   } = useEvaluationProgress({
     onComplete: () => {
       console.log('Evaluation completed via realtime');
@@ -431,13 +433,30 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
               </div>
             </div>
             <Progress value={displayProgress} className="h-2" />
-            <div className="flex items-center justify-between mt-2">
-              {isSubscribed && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  Live updates enabled
-                </p>
-              )}
+            <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+              <div className="flex items-center gap-4">
+                {isSubscribed && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    Live updates enabled
+                  </p>
+                )}
+                {notificationPermission === 'default' && (
+                  <button
+                    onClick={requestNotificationPermission}
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Bell className="w-3 h-3" />
+                    Enable notifications
+                  </button>
+                )}
+                {notificationPermission === 'granted' && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Bell className="w-3 h-3" />
+                    Notifications on
+                  </p>
+                )}
+              </div>
               {lastUpdate && (
                 <p className="text-xs text-muted-foreground">
                   Last update: {lastUpdate}
