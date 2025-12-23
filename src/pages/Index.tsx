@@ -113,7 +113,8 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
     eta,
     lastUpdate,
     notificationPermission,
-    requestNotificationPermission
+    requestNotificationPermission,
+    progressHistory
   } = useEvaluationProgress({
     onComplete: () => {
       console.log('Evaluation completed via realtime');
@@ -504,6 +505,56 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
                   <p className="text-xs text-muted-foreground">
                     Adaptive iterations continue until stability thresholds are met.
                   </p>
+                </div>
+              </div>
+            )}
+            
+            {/* Progress History Timeline */}
+            {progressHistory.length > 0 && (
+              <div className="mt-4 border-t border-border pt-4">
+                <p className="text-sm font-medium text-card-foreground mb-3 flex items-center gap-2">
+                  <History className="w-4 h-4" />
+                  Progress Timeline
+                </p>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {progressHistory.map((entry, index) => {
+                    const isLatest = index === progressHistory.length - 1;
+                    const phaseLabels: Record<string, string> = {
+                      initializing: 'Initializing',
+                      detecting: 'Analyzing',
+                      processing: 'Processing',
+                      finalizing: 'Finalizing',
+                      completed: 'Complete',
+                    };
+                    const phaseLabel = phaseLabels[entry.phase] || entry.phase;
+                    
+                    return (
+                      <div 
+                        key={entry.id} 
+                        className={`flex items-start gap-3 text-xs ${isLatest ? 'text-card-foreground' : 'text-muted-foreground'}`}
+                      >
+                        <div className="flex flex-col items-center">
+                          <div className={`w-2 h-2 rounded-full mt-1 ${isLatest ? 'bg-primary' : 'bg-muted-foreground/50'}`} />
+                          {index < progressHistory.length - 1 && (
+                            <div className="w-px h-4 bg-border" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{phaseLabel}</span>
+                            {entry.heuristic && (
+                              <span className="text-primary truncate">
+                                {entry.heuristic.replace(/_/g, ' ')}
+                              </span>
+                            )}
+                            <span className="text-muted-foreground ml-auto shrink-0">
+                              {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
