@@ -106,9 +106,9 @@ const PROVIDER_POLICIES: Record<string, ProviderRateLimitPolicy> = {
   'biaslens-simulator': {
     providerId: 'biaslens-simulator',
     displayName: 'BiasLens simulator',
-    requestsPerMinute: 120,
-    minIntervalMs: 500,
-    retryAfterMs: 1000,
+    requestsPerMinute: 6000, // Simulator has no real rate limits
+    minIntervalMs: 10, // Minimal delay for mock responses
+    retryAfterMs: 100,
     determinismSupport: 'full',
     determinismGuidance: 'Simulator accepts deterministic parameters for replay and confidence calculations.',
   },
