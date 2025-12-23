@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface EvaluationProgress {
@@ -22,6 +22,10 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
   const { evaluationId, onComplete } = options;
   const [progress, setProgress] = useState<EvaluationProgress | null>(null);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  
+  // Use ref for onComplete to avoid re-subscribing when callback changes
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   // Subscribe to all evaluation progress updates (for when we don't know the ID yet)
   const subscribeToAllProgress = useCallback(() => {
@@ -41,8 +45,8 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
             const newProgress = payload.new as EvaluationProgress;
             setProgress(newProgress);
             
-            if (newProgress.progress_percent >= 100 && onComplete) {
-              onComplete();
+            if (newProgress.progress_percent >= 100 && onCompleteRef.current) {
+              onCompleteRef.current();
             }
           } else if (payload.eventType === 'DELETE') {
             setProgress(null);
@@ -59,7 +63,7 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
       supabase.removeChannel(channel);
       setIsSubscribed(false);
     };
-  }, [onComplete]);
+  }, []);
 
   // Subscribe to a specific evaluation's progress
   const subscribeToEvaluation = useCallback((evalId: string) => {
@@ -80,8 +84,8 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
             const newProgress = payload.new as EvaluationProgress;
             setProgress(newProgress);
             
-            if (newProgress.progress_percent >= 100 && onComplete) {
-              onComplete();
+            if (newProgress.progress_percent >= 100 && onCompleteRef.current) {
+              onCompleteRef.current();
             }
           } else if (payload.eventType === 'DELETE') {
             setProgress(null);
@@ -97,7 +101,7 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
       supabase.removeChannel(channel);
       setIsSubscribed(false);
     };
-  }, [onComplete]);
+  }, []);
 
   useEffect(() => {
     if (evaluationId) {
