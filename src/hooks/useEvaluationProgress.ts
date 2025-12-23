@@ -163,7 +163,7 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
       supabase.removeChannel(channel);
       setIsSubscribed(false);
     };
-  }, [startTime]);
+  }, [startTime, addHistoryEntry, enableNotifications]);
 
   // Subscribe to a specific evaluation's progress
   const subscribeToEvaluation = useCallback((evalId: string) => {
@@ -215,7 +215,7 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
       supabase.removeChannel(channel);
       setIsSubscribed(false);
     };
-  }, [startTime]);
+  }, [startTime, addHistoryEntry, enableNotifications]);
 
   useEffect(() => {
     if (evaluationId) {
