@@ -261,6 +261,10 @@ function transformTrendData(dataPoints: ApiTrendDataPoint[]): BaselineData[] {
 
 /**
  * Run a complete evaluation using the Edge Function
+ *
+ * Note: The backend starts the evaluation asynchronously and returns immediately.
+ * This helper waits until the evaluation is completed (or failed) and then
+ * loads the full results from the database.
  */
 export async function runFullEvaluation(
   config: EvaluationConfig,
@@ -280,17 +284,21 @@ export async function runFullEvaluation(
     ...(config.deterministic ?? {}),
   };
 
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
   // Get the session for auth
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  
+
   if (sessionError || !session) {
     throw new ApiError(401, 'Authentication required. Please sign in.');
   }
 
-  onProgress?.(30, 'Running diagnostic analysis...');
+  onProgress?.(30, 'Starting diagnostic analysis...');
 
-  // Call the edge function
-  const { data, error } = await supabase.functions.invoke<FullEvaluationResponse>('evaluate', {
+  // Call the backend function (starts async evaluation)
+  const { data, error } = await supabase.functions.invoke<
+    FullEvaluationResponse | { evaluation: ApiEvaluationResponse; message?: string }
+  >('evaluate', {
     body: {
       ai_system_name: config.systemName,
       heuristic_types: config.selectedHeuristics.map(mapFrontendHeuristicType),
@@ -317,47 +325,115 @@ export async function runFullEvaluation(
     throw new ApiError(500, 'No data returned from evaluation');
   }
 
-  onProgress?.(80, 'Processing results...');
+  // Back-compat: if backend returns the full evaluation payload synchronously
+  if ('findings' in data && Array.isArray((data as FullEvaluationResponse).findings)) {
+    const full = data as FullEvaluationResponse;
 
-  // Transform the response
-  const findings = data.findings.map(transformHeuristicFinding);
-  const recommendations = data.recommendations.map(transformRecommendation);
-  const reproPackMetadata = mapReproPackMetadata({
-    repro_pack_id: data.repro_pack_id,
-    repro_pack_hash: data.repro_pack_hash,
-    signature: data.signature,
-    signing_authority: data.signing_authority,
-    repro_pack_created_at: data.repro_pack_created_at,
-  });
+    onProgress?.(80, 'Processing results...');
 
-  // Fetch real historical baseline data instead of using synthetic trend data
-  const baselineData = await fetchHistoricalBaselineData(config.systemName);
+    const findings = full.findings.map(transformHeuristicFinding);
+    const recommendations = full.recommendations.map(transformRecommendation);
+    const reproPackMetadata = mapReproPackMetadata({
+      repro_pack_id: full.repro_pack_id,
+      repro_pack_hash: full.repro_pack_hash,
+      signature: full.signature,
+      signing_authority: full.signing_authority,
+      repro_pack_created_at: full.repro_pack_created_at,
+    });
+
+    const baselineData = await fetchHistoricalBaselineData(config.systemName);
+
+    onProgress?.(100, 'Analysis complete');
+
+    return {
+      id: full.evaluation.id,
+      config: {
+        ...config,
+        deterministic: deterministicConfig,
+      },
+      status: full.evaluation.status === 'completed' ? 'completed' : 'failed',
+      progress: 100,
+      findings,
+      recommendations,
+      timestamp: new Date(full.evaluation.created_at),
+      overallScore: full.evaluation.overall_score || 0,
+      baselineComparison: baselineData,
+      evidenceReferenceId: full.evaluation.evidence_reference_id || undefined,
+      evidenceStorageType: full.evaluation.evidence_storage_type || undefined,
+      determinismMode: full.evaluation.determinism_mode || undefined,
+      seedValue: full.evaluation.seed_value || undefined,
+      iterationsRun: full.evaluation.iterations_run || undefined,
+      achievedLevel: full.evaluation.achieved_level || undefined,
+      parametersUsed: full.evaluation.parameters_used || undefined,
+      confidenceIntervals: full.evaluation.confidence_intervals || undefined,
+      perIterationResults: full.evaluation.per_iteration_results || undefined,
+      ...reproPackMetadata,
+    };
+  }
+
+  // Normal path: async start response
+  const started = data as { evaluation: ApiEvaluationResponse; message?: string };
+  const evaluationId = started?.evaluation?.id;
+
+  if (!evaluationId) {
+    console.error('Unexpected evaluation start response:', data);
+    throw new ApiError(500, 'Unexpected response when starting evaluation');
+  }
+
+  onProgress?.(35, 'Evaluation started. Waiting for completion...');
+
+  const timeoutMs = 10 * 60 * 1000; // 10 minutes
+  const pollIntervalMs = 1500;
+  const startedAt = Date.now();
+
+  while (true) {
+    const { data: statusRow, error: statusError } = await supabase
+      .from('evaluations')
+      .select('status')
+      .eq('id', evaluationId)
+      .maybeSingle();
+
+    if (statusError) {
+      console.warn('Failed to read evaluation status, retrying:', statusError);
+    } else if (!statusRow) {
+      throw new ApiError(404, 'Evaluation not found');
+    } else if (statusRow.status === 'completed') {
+      break;
+    } else if (statusRow.status === 'failed') {
+      // Try to surface the latest progress message as the failure reason
+      const { data: progressRow } = await supabase
+        .from('evaluation_progress')
+        .select('message')
+        .eq('evaluation_id', evaluationId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      throw new ApiError(500, progressRow?.message || 'Evaluation failed');
+    }
+
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new ApiError(
+        504,
+        'Evaluation is taking longer than expected and is still running. Please keep the page open; results will appear when complete.'
+      );
+    }
+
+    await sleep(pollIntervalMs);
+  }
+
+  onProgress?.(80, 'Loading results...');
+
+  const completedRun = await loadEvaluationDetails(evaluationId);
 
   onProgress?.(100, 'Analysis complete');
 
   return {
-    id: data.evaluation.id,
+    ...completedRun,
     config: {
-      ...config,
+      ...completedRun.config,
       deterministic: deterministicConfig,
     },
-    status: data.evaluation.status === 'completed' ? 'completed' : 'failed',
-    progress: 100,
-    findings,
-    recommendations,
-    timestamp: new Date(data.evaluation.created_at),
-    overallScore: data.evaluation.overall_score || 0,
-    baselineComparison: baselineData,
-    evidenceReferenceId: data.evaluation.evidence_reference_id || undefined,
-    evidenceStorageType: data.evaluation.evidence_storage_type || undefined,
-    determinismMode: data.evaluation.determinism_mode || undefined,
-    seedValue: data.evaluation.seed_value || undefined,
-    iterationsRun: data.evaluation.iterations_run || undefined,
-    achievedLevel: data.evaluation.achieved_level || undefined,
-    parametersUsed: data.evaluation.parameters_used || undefined,
-    confidenceIntervals: data.evaluation.confidence_intervals || undefined,
-    perIterationResults: data.evaluation.per_iteration_results || undefined,
-    ...reproPackMetadata,
   };
 }
 
