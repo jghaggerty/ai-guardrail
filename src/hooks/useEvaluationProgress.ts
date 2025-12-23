@@ -13,6 +13,15 @@ export interface EvaluationProgress {
   updated_at: string;
 }
 
+export interface ProgressHistoryEntry {
+  id: string;
+  timestamp: Date;
+  phase: string;
+  heuristic: string | null;
+  message: string | null;
+  progressPercent: number;
+}
+
 interface UseEvaluationProgressOptions {
   evaluationId?: string;
   onComplete?: () => void;
@@ -51,6 +60,7 @@ function sendNotification(title: string, body: string) {
 export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}) {
   const { evaluationId, onComplete, enableNotifications = true } = options;
   const [progress, setProgress] = useState<EvaluationProgress | null>(null);
+  const [progressHistory, setProgressHistory] = useState<ProgressHistoryEntry[]>([]);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isTabActive, setIsTabActive] = useState(!document.hidden);
   const [startTime, setStartTime] = useState<Date | null>(null);
@@ -59,9 +69,37 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
     'Notification' in window ? Notification.permission : 'unsupported'
   );
   
+  // Track last recorded phase/heuristic to avoid duplicate history entries
+  const lastRecordedRef = useRef<{ phase: string; heuristic: string | null }>({ phase: '', heuristic: null });
+  
   // Use ref for onComplete to avoid re-subscribing when callback changes
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+
+  // Add entry to progress history (only when phase or heuristic changes)
+  const addHistoryEntry = useCallback((newProgress: EvaluationProgress) => {
+    const lastRecorded = lastRecordedRef.current;
+    
+    // Only add if phase or heuristic has changed
+    if (lastRecorded.phase !== newProgress.current_phase || 
+        lastRecorded.heuristic !== newProgress.current_heuristic) {
+      
+      const entry: ProgressHistoryEntry = {
+        id: `${newProgress.current_phase}-${newProgress.current_heuristic || 'none'}-${Date.now()}`,
+        timestamp: new Date(),
+        phase: newProgress.current_phase,
+        heuristic: newProgress.current_heuristic,
+        message: newProgress.message,
+        progressPercent: newProgress.progress_percent,
+      };
+      
+      setProgressHistory(prev => [...prev, entry]);
+      lastRecordedRef.current = { 
+        phase: newProgress.current_phase, 
+        heuristic: newProgress.current_heuristic 
+      };
+    }
+  }, []);
 
   // Track tab visibility
   useEffect(() => {
@@ -93,6 +131,7 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
             const newProgress = payload.new as EvaluationProgress;
             setProgress(newProgress);
             setLastUpdateTime(new Date());
+            addHistoryEntry(newProgress);
             
             // Set start time on first progress update
             if (!startTime && newProgress.progress_percent > 0) {
@@ -145,6 +184,7 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
             const newProgress = payload.new as EvaluationProgress;
             setProgress(newProgress);
             setLastUpdateTime(new Date());
+            addHistoryEntry(newProgress);
             
             // Set start time on first progress update
             if (!startTime && newProgress.progress_percent > 0) {
@@ -188,8 +228,10 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
   // Reset progress state
   const resetProgress = useCallback(() => {
     setProgress(null);
+    setProgressHistory([]);
     setStartTime(null);
     setLastUpdateTime(null);
+    lastRecordedRef.current = { phase: '', heuristic: null };
   }, []);
 
   // Calculate ETA based on elapsed time and progress
@@ -278,6 +320,7 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
 
   return {
     progress,
+    progressHistory,
     isSubscribed,
     isTabActive,
     notificationPermission,
