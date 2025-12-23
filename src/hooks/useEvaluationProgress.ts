@@ -16,15 +16,48 @@ export interface EvaluationProgress {
 interface UseEvaluationProgressOptions {
   evaluationId?: string;
   onComplete?: () => void;
+  enableNotifications?: boolean;
+}
+
+// Request notification permission
+export async function requestNotificationPermission(): Promise<boolean> {
+  if (!('Notification' in window)) {
+    return false;
+  }
+  
+  if (Notification.permission === 'granted') {
+    return true;
+  }
+  
+  if (Notification.permission !== 'denied') {
+    const permission = await Notification.requestPermission();
+    return permission === 'granted';
+  }
+  
+  return false;
+}
+
+// Send browser notification
+function sendNotification(title: string, body: string) {
+  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+    new Notification(title, {
+      body,
+      icon: '/favicon.svg',
+      tag: 'evaluation-complete',
+    });
+  }
 }
 
 export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}) {
-  const { evaluationId, onComplete } = options;
+  const { evaluationId, onComplete, enableNotifications = true } = options;
   const [progress, setProgress] = useState<EvaluationProgress | null>(null);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isTabActive, setIsTabActive] = useState(!document.hidden);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(
+    'Notification' in window ? Notification.permission : 'unsupported'
+  );
   
   // Use ref for onComplete to avoid re-subscribing when callback changes
   const onCompleteRef = useRef(onComplete);
@@ -67,6 +100,13 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
             }
             
             if (newProgress.progress_percent >= 100 && onCompleteRef.current) {
+              // Send notification if tab is inactive
+              if (enableNotifications && document.hidden) {
+                sendNotification(
+                  'Analysis Complete',
+                  'Your AI bias diagnostic analysis has finished. Click to view results.'
+                );
+              }
               onCompleteRef.current();
             }
           } else if (payload.eventType === 'DELETE') {
@@ -112,6 +152,13 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
             }
             
             if (newProgress.progress_percent >= 100 && onCompleteRef.current) {
+              // Send notification if tab is inactive
+              if (enableNotifications && document.hidden) {
+                sendNotification(
+                  'Analysis Complete',
+                  'Your AI bias diagnostic analysis has finished. Click to view results.'
+                );
+              }
               onCompleteRef.current();
             }
           } else if (payload.eventType === 'DELETE') {
@@ -222,10 +269,19 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
     return phaseLabels[progress.current_phase] || progress.current_phase;
   }, [progress]);
 
+  // Request notification permission
+  const requestPermission = useCallback(async () => {
+    const granted = await requestNotificationPermission();
+    setNotificationPermission(granted ? 'granted' : 'denied');
+    return granted;
+  }, []);
+
   return {
     progress,
     isSubscribed,
     isTabActive,
+    notificationPermission,
+    requestNotificationPermission: requestPermission,
     progressPercent: progress?.progress_percent ?? 0,
     currentPhase: progress?.current_phase ?? 'initializing',
     currentHeuristic: progress?.current_heuristic,
