@@ -38,9 +38,12 @@ import type {
 import { EvidenceCollectorError } from './evidence-collectors/types.ts'
 import {
   decryptAndParseCredentials,
+  decryptCredentials,
   getEncryptionSecret,
 } from './evidence-collectors/decrypt.ts'
 import { createEvidenceCollector } from './evidence-collectors/factory.ts'
+import { createLLMClient } from './llm-clients/factory.ts'
+import type { LLMClient, LLMOptions } from './llm-clients/types.ts'
 import { computeReproPackHash } from '../utils/repro-pack.ts'
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 import { getProviderCapabilities, resolveAchievedLevel } from './modelCapabilities.ts'
@@ -71,6 +74,66 @@ const DEFAULT_MODEL_CONFIG = {
     maxTokens: Number(Deno.env.get('EVALUATION_MAX_TOKENS') ?? '1024'),
     topP: Number(Deno.env.get('EVALUATION_TOP_P') ?? '1'),
   },
+}
+
+// ============================================================================
+// LLM CONFIGURATION FETCHING
+// ============================================================================
+
+interface LLMConfigResult {
+  provider: string
+  modelName: string
+  apiKey: string
+  baseUrl?: string | null
+}
+
+/**
+ * Fetch and decrypt LLM configuration from the database.
+ * Uses the same encryption pattern as API key storage.
+ */
+async function fetchLLMConfig(
+  configId: string,
+  teamId: string,
+  supabaseUrl: string,
+  serviceRoleKey: string
+): Promise<LLMConfigResult> {
+  const adminClient = createClient(supabaseUrl, serviceRoleKey)
+
+  // Fetch the LLM configuration
+  const { data: config, error: configError } = await adminClient
+    .from('llm_configurations')
+    .select('api_key_encrypted, team_id, provider, model_name, base_url')
+    .eq('id', configId)
+    .maybeSingle()
+
+  if (configError || !config) {
+    console.error('LLM config fetch error:', configError)
+    throw new Error(`LLM configuration not found: ${configId}`)
+  }
+
+  // Verify team membership
+  if (config.team_id !== teamId) {
+    console.error('Team mismatch: user team', teamId, 'config team', config.team_id)
+    throw new Error('Unauthorized: LLM configuration belongs to a different team')
+  }
+
+  // Check if API key exists
+  if (!config.api_key_encrypted) {
+    throw new Error('No API key configured for this LLM. Please add an API key in settings.')
+  }
+
+  // Decrypt the API key
+  const encryptionSecret = getEncryptionSecret()
+  const apiKey = await decryptCredentials(config.api_key_encrypted, encryptionSecret)
+
+  console.log(`Successfully decrypted API key for LLM config ${configId} (provider: ${config.provider})`)
+
+  return {
+    provider: config.provider,
+    modelName: config.model_name,
+    apiKey,
+    baseUrl: config.base_url,
+  }
 }
 
 interface ProviderRateLimitPolicy {
@@ -205,6 +268,7 @@ function formatDuration(ms: number): string {
 interface IterationExecutionOptions {
   scheduler?: ProviderCallScheduler
   onThrottle?: (ctx: RateLimitDelayContext) => Promise<void> | void
+  llmOptions?: LLMOptions
 }
 
 async function generateResponseWithRateLimit(
@@ -231,6 +295,7 @@ interface EvaluationRequest {
   ai_system_name: string
   heuristic_types: HeuristicType[]
   iteration_count: number
+  llm_config_id?: string  // Optional: ID of the LLM configuration to use for real API calls
   deterministic?: {
     enabled: boolean
     level: 'full' | 'near' | 'adaptive'
@@ -624,7 +689,8 @@ async function detectAnchoringBias(
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
   reproCapture?: ReproCaptureEntry[],
-  iterationOptions?: IterationExecutionOptions
+  iterationOptions?: IterationExecutionOptions,
+  llmClient?: LLMClient
 ): Promise<HeuristicFindingResult> {
   const testCases = anchoringTestCases
   const testCaseCount = testCases.length
@@ -637,7 +703,7 @@ async function detectAnchoringBias(
     outputFormat: 'json',
   }
 
-  const runner = new TestRunner(config)
+  const runner = new TestRunner(config, llmClient, iterationOptions?.llmOptions)
 
   // Generate prompts and capture outputs for evidence collection
   // Generate all prompts upfront for all test cases and iterations
@@ -730,7 +796,8 @@ async function detectLossAversion(
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
   reproCapture?: ReproCaptureEntry[],
-  iterationOptions?: IterationExecutionOptions
+  iterationOptions?: IterationExecutionOptions,
+  llmClient?: LLMClient
 ): Promise<HeuristicFindingResult> {
   const testCases = lossAversionTestCases
   const testCaseCount = testCases.length
@@ -743,7 +810,7 @@ async function detectLossAversion(
     outputFormat: 'json',
   }
 
-  const runner = new TestRunner(config)
+  const runner = new TestRunner(config, llmClient, iterationOptions?.llmOptions)
 
   // Generate prompts and capture outputs for evidence collection
   const allPrompts = await runner.generatePrompts(testCases, config.testIterations)
@@ -836,7 +903,8 @@ async function detectConfirmationBias(
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
   reproCapture?: ReproCaptureEntry[],
-  iterationOptions?: IterationExecutionOptions
+  iterationOptions?: IterationExecutionOptions,
+  llmClient?: LLMClient
 ): Promise<HeuristicFindingResult> {
   const testCases = confirmationBiasTestCases
   const testCaseCount = testCases.length
@@ -848,7 +916,7 @@ async function detectConfirmationBias(
     outputFormat: 'json',
   }
 
-  const runner = new TestRunner(config)
+  const runner = new TestRunner(config, llmClient, iterationOptions?.llmOptions)
   const allPrompts = await runner.generatePrompts(testCases, config.testIterations)
 
   const scores: number[] = []
@@ -927,7 +995,8 @@ async function detectSunkCostFallacy(
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
   reproCapture?: ReproCaptureEntry[],
-  iterationOptions?: IterationExecutionOptions
+  iterationOptions?: IterationExecutionOptions,
+  llmClient?: LLMClient
 ): Promise<HeuristicFindingResult> {
   const testCases = sunkCostTestCases
   const testCaseCount = testCases.length
@@ -939,7 +1008,7 @@ async function detectSunkCostFallacy(
     outputFormat: 'json',
   }
 
-  const runner = new TestRunner(config)
+  const runner = new TestRunner(config, llmClient, iterationOptions?.llmOptions)
   const allPrompts = await runner.generatePrompts(testCases, config.testIterations)
 
   const scores: number[] = []
@@ -1018,7 +1087,8 @@ async function detectAvailabilityHeuristic(
   evidenceCapture?: CapturedEvidence[],
   evaluationRunId?: string,
   reproCapture?: ReproCaptureEntry[],
-  iterationOptions?: IterationExecutionOptions
+  iterationOptions?: IterationExecutionOptions,
+  llmClient?: LLMClient
 ): Promise<HeuristicFindingResult> {
   const testCases = availabilityHeuristicTestCases
   const testCaseCount = testCases.length
@@ -1030,7 +1100,7 @@ async function detectAvailabilityHeuristic(
     outputFormat: 'json',
   }
 
-  const runner = new TestRunner(config)
+  const runner = new TestRunner(config, llmClient, iterationOptions?.llmOptions)
   const allPrompts = await runner.generatePrompts(testCases, config.testIterations)
 
   const scores: number[] = []
@@ -1774,6 +1844,64 @@ Deno.serve(async (req) => {
         }
       }
 
+      // ========================================================================
+      // LLM CLIENT CREATION
+      // ========================================================================
+      // If llm_config_id is provided, fetch and decrypt the LLM configuration
+      // to create a real LLM client for API calls. Otherwise, use simulator mode.
+      // ========================================================================
+      let llmClient: LLMClient | undefined = undefined
+      let effectiveProvider = DEFAULT_MODEL_CONFIG.provider
+      let effectiveModelName = DEFAULT_MODEL_CONFIG.modelName
+
+      if (body.llm_config_id && teamId) {
+        try {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+          const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+          const llmConfig = await fetchLLMConfig(
+            body.llm_config_id,
+            teamId,
+            supabaseUrl,
+            serviceRoleKey
+          )
+
+          llmClient = createLLMClient(
+            llmConfig.provider,
+            llmConfig.apiKey,
+            llmConfig.modelName,
+            llmConfig.baseUrl
+          )
+
+          effectiveProvider = llmConfig.provider
+          effectiveModelName = llmConfig.modelName
+
+          console.log(
+            `LLM client created successfully for provider: ${llmConfig.provider}, model: ${llmConfig.modelName}`
+          )
+        } catch (llmError) {
+          const errorMessage = llmError instanceof Error ? llmError.message : String(llmError)
+          console.error('Error creating LLM client:', errorMessage)
+
+          // Return error instead of falling back to simulator when user explicitly requested real LLM
+          return new Response(
+            JSON.stringify({
+              error: `Failed to initialize LLM: ${errorMessage}`,
+              hint: 'Please check your API key configuration in settings.',
+            }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          )
+        }
+      } else if (!body.llm_config_id) {
+        console.log('No llm_config_id provided, using simulator mode')
+      }
+
+      // Update provider policy based on effective provider (may have changed if using stored config)
+      const effectiveProviderPolicy = getProviderPolicy(effectiveProvider)
+
       // Validate iteration count
       if (body.iteration_count < 10 || body.iteration_count > 1000) {
         return new Response(JSON.stringify({ error: 'Iteration count must be between 10 and 1000' }), {
@@ -1933,7 +2061,8 @@ Deno.serve(async (req) => {
           evidenceCapture?: CapturedEvidence[],
           evaluationRunId?: string,
           reproCapture?: ReproCaptureEntry[],
-          iterationOptions?: IterationExecutionOptions
+          iterationOptions?: IterationExecutionOptions,
+          llmClient?: LLMClient
         ) => Promise<HeuristicFindingResult>> = {
           anchoring: detectAnchoringBias,
           loss_aversion: detectLossAversion,
@@ -1943,6 +2072,7 @@ Deno.serve(async (req) => {
         }
 
         // Pass evidence capture array if collector mode is enabled
+        // Pass llmClient if available for real API calls
         const finding = await detectors[heuristicType](
           body.iteration_count,
           evidenceCollector ? capturedEvidence : undefined,
@@ -1960,7 +2090,8 @@ Deno.serve(async (req) => {
                 message,
               )
             }
-          }
+          },
+          llmClient
         )
         findings.push(finding)
         

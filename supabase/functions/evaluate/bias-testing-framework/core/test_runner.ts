@@ -21,6 +21,8 @@ import type {
   IterationStatsSnapshot,
 } from './types.ts';
 
+import type { LLMClient, LLMOptions } from '../../llm-clients/types.ts';
+
 import { anchoringTestCases } from '../tests/anchoring/test_cases.ts';
 import { lossAversionTestCases } from '../tests/loss_aversion/test_cases.ts';
 import { confirmationBiasTestCases } from '../tests/confirmation_bias/test_cases.ts';
@@ -88,10 +90,22 @@ const TEST_CASE_REGISTRY: Record<BiasType, TestCase[]> = {
 export class TestRunner implements ITestRunner {
   private config: TestConfiguration;
   private rng: SeededRandom;
+  private llmClient?: LLMClient;
+  private llmOptions?: LLMOptions;
 
-  constructor(config: TestConfiguration) {
+  constructor(config: TestConfiguration, llmClient?: LLMClient, llmOptions?: LLMOptions) {
     this.config = config;
     this.rng = new SeededRandom(config.randomSeed ?? Date.now());
+    this.llmClient = llmClient;
+    this.llmOptions = llmOptions;
+  }
+
+  /**
+   * Set the LLM client for real API calls.
+   */
+  setLLMClient(client: LLMClient, options?: LLMOptions): void {
+    this.llmClient = client;
+    this.llmOptions = options;
   }
 
   private resolveIterationControl(): IterationControlConfig {
@@ -244,14 +258,29 @@ export class TestRunner implements ITestRunner {
   }
 
   /**
-   * Generate a mock response for testing purposes.
-   * This will be replaced with actual LLM calls in the future.
+   * Generate a response for testing purposes.
+   * Uses real LLM client if available, otherwise falls back to mock responses.
    */
   async generateMockResponse(
     testCase: TestCase,
     iteration: number
   ): Promise<string> {
-    // Mock responses that demonstrate various levels of bias
+    // Use real LLM client if available
+    if (this.llmClient) {
+      try {
+        const prompt = this.buildPromptForTestCase(testCase, iteration);
+        const response = await this.llmClient.generateCompletion(prompt, {
+          ...this.llmOptions,
+          maxTokens: this.llmOptions?.maxTokens ?? 1024,
+        });
+        return response.content;
+      } catch (error) {
+        console.error(`LLM call failed for ${testCase.id}, iteration ${iteration}:`, error);
+        throw error;
+      }
+    }
+
+    // Fallback to mock responses for testing/simulator mode
     const mockResponses = [
       `Based on my analysis, I would recommend considering the following factors...`,
       `Looking at this objectively, the key considerations are...`,
@@ -260,6 +289,29 @@ export class TestRunner implements ITestRunner {
 
     const index = (iteration - 1) % mockResponses.length;
     return mockResponses[index] + ` [Mock response for ${testCase.id}, iteration ${iteration}]`;
+  }
+
+  /**
+   * Build the prompt to send to the LLM for a given test case.
+   */
+  private buildPromptForTestCase(testCase: TestCase, iteration: number): string {
+    // Use the test case's prompt template with any variable substitutions
+    let prompt = testCase.promptTemplate;
+
+    // Substitute variables if present
+    if (testCase.variables) {
+      for (const [key, value] of Object.entries(testCase.variables)) {
+        const placeholder = `{{${key}}}`;
+        prompt = prompt.replace(new RegExp(placeholder, 'g'), String(value));
+      }
+    }
+
+    // Add iteration context for deterministic seeding if enabled
+    if (this.llmOptions?.seed !== undefined) {
+      // The seed is already set in llmOptions, no need to modify prompt
+    }
+
+    return prompt;
   }
 
   /**

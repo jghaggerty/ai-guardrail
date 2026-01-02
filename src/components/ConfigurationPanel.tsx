@@ -17,6 +17,7 @@ interface ConfigurationPanelProps {
     selectedHeuristics: HeuristicType[];
     iterations: number;
     systemName: string;
+    llmConfigId?: string;  // ID of the LLM configuration for real API calls
   }) => void;
   isRunning: boolean;
 }
@@ -72,6 +73,7 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
   const [llmConfigs, setLlmConfigs] = useState<LLMConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [systemName, setSystemName] = useState('');
+  const [selectedLlmConfigId, setSelectedLlmConfigId] = useState<string | undefined>(undefined);
   const [iterations, setIterations] = useState(100);
   const [selectedHeuristics, setSelectedHeuristics] = useState<HeuristicType[]>([
     'anchoring',
@@ -114,6 +116,7 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
             setLlmConfigs(configs);
             const firstConnected = configs.find(c => c.is_connected) || configs[0];
             setSystemName(firstConnected.display_name);
+            setSelectedLlmConfigId(firstConnected.is_connected ? firstConnected.id : undefined);
           }
 
           // Fetch saved heuristic selections
@@ -165,6 +168,7 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
         selectedHeuristics,
         iterations,
         systemName,
+        llmConfigId: selectedLlmConfigId,
       });
     }
   };
@@ -209,18 +213,31 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
               </Link>
             </div>
           ) : (
-            <Select value={systemName} onValueChange={setSystemName} disabled={isRunning}>
+            <Select
+              value={selectedLlmConfigId || ''}
+              onValueChange={(configId) => {
+                const config = llmConfigs.find(c => c.id === configId);
+                if (config) {
+                  setSelectedLlmConfigId(config.is_connected ? config.id : undefined);
+                  setSystemName(config.display_name);
+                }
+              }}
+              disabled={isRunning}
+            >
               <SelectTrigger className="mt-1.5">
                 <SelectValue placeholder="Select AI system..." />
               </SelectTrigger>
               <SelectContent>
                 {llmConfigs.map((config) => (
-                  <SelectItem key={config.id} value={config.display_name}>
+                  <SelectItem key={config.id} value={config.id}>
                     <div className="flex items-center gap-2">
                       <span>{config.display_name}</span>
                       <span className="text-xs text-muted-foreground">
                         ({config.provider})
                       </span>
+                      {!config.is_connected && (
+                        <span className="text-xs text-yellow-600">(not configured)</span>
+                      )}
                     </div>
                   </SelectItem>
                 ))}
