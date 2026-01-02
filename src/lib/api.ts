@@ -332,7 +332,7 @@ export async function runFullEvaluation(
     onProgress?.(80, 'Processing results...');
 
     const findings = full.findings.map(transformHeuristicFinding);
-    const recommendations = full.recommendations.map(transformRecommendation);
+    const recommendations = (full.recommendations || []).map(transformRecommendation);
     const reproPackMetadata = mapReproPackMetadata({
       repro_pack_id: full.repro_pack_id,
       repro_pack_hash: full.repro_pack_hash,
