@@ -39,6 +39,7 @@ export interface EvaluationConfig {
   selectedHeuristics: HeuristicType[];
   iterations: number;
   systemName: string;
+  llmConfigId?: string;  // Optional: ID of the LLM configuration to use for real API calls
   deterministic?: {
     enabled: boolean;
     level: 'full' | 'near' | 'adaptive';

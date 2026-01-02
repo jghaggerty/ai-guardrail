@@ -303,6 +303,7 @@ export async function runFullEvaluation(
       ai_system_name: config.systemName,
       heuristic_types: config.selectedHeuristics.map(mapFrontendHeuristicType),
       iteration_count: config.iterations,
+      llm_config_id: config.llmConfigId,  // Pass LLM configuration ID for real API calls
       deterministic: {
         enabled: deterministicConfig.enabled,
         level: deterministicConfig.level,
