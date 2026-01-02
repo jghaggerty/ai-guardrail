@@ -296,11 +296,11 @@ export class TestRunner implements ITestRunner {
    */
   private buildPromptForTestCase(testCase: TestCase, iteration: number): string {
     // Use the test case's prompt template with any variable substitutions
-    let prompt = testCase.promptTemplate;
+    let prompt = testCase.prompt;
 
     // Substitute variables if present
-    if (testCase.variables) {
-      for (const [key, value] of Object.entries(testCase.variables)) {
+    if (testCase.promptVariables) {
+      for (const [key, value] of Object.entries(testCase.promptVariables)) {
         const placeholder = `{{${key}}}`;
         prompt = prompt.replace(new RegExp(placeholder, 'g'), String(value));
       }
