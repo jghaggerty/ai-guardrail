@@ -1962,7 +1962,6 @@ Deno.serve(async (req) => {
         .insert({
           user_id: user.id,
           team_id: teamId,
-          company_id: companyId,
           ai_system_name: body.ai_system_name,
           heuristic_types: body.heuristic_types,
           iteration_count: body.iteration_count,
