@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+// Input validation schema
+const TestConnectionSchema = z.object({
+  configId: z.string().uuid({ message: "configId must be a valid UUID" }),
+});
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -175,15 +181,18 @@ serve(async (req) => {
       );
     }
 
-    const body = await req.json();
-    const { configId } = body;
-
-    if (!configId) {
+    // Validate input with zod schema
+    let body;
+    try {
+      const rawBody = await req.json();
+      body = TestConnectionSchema.parse(rawBody);
+    } catch (e) {
       return new Response(
-        JSON.stringify({ error: 'Missing configId' }),
+        JSON.stringify({ error: 'Invalid input format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    const { configId } = body;
 
     // Validate team membership
     const { data: profile } = await supabase

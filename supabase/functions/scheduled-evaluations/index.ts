@@ -47,6 +47,17 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  // Verify scheduler secret to prevent unauthorized calls
+  const authSecret = req.headers.get('x-scheduler-secret')
+  const expectedSecret = Deno.env.get('SCHEDULER_SECRET')
+  if (!authSecret || !expectedSecret || authSecret !== expectedSecret) {
+    console.warn('Unauthorized scheduled-evaluations call attempt')
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   console.log('Scheduled evaluations check started at:', new Date().toISOString())
 
   try {

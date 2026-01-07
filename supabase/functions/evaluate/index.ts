@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts"
 
 // Declare EdgeRuntime for background task processing
 declare const EdgeRuntime: {
@@ -65,6 +66,29 @@ type ZoneStatus = 'green' | 'yellow' | 'red'
 type ImpactLevel = 'low' | 'medium' | 'high'
 type DifficultyLevel = 'easy' | 'moderate' | 'complex'
 type SigningMode = 'biaslens' | 'customer'
+
+// Input validation schema for evaluation requests
+const EvaluationRequestSchema = z.object({
+  ai_system_name: z.string().min(1).max(255, { message: "ai_system_name must be between 1 and 255 characters" }),
+  heuristic_types: z.array(z.enum(['anchoring', 'loss_aversion', 'sunk_cost', 'confirmation_bias', 'availability_heuristic']))
+    .min(1, { message: "heuristic_types must have at least 1 item" })
+    .max(10, { message: "heuristic_types cannot exceed 10 items" }),
+  iteration_count: z.number().int().min(10, { message: "iteration_count must be at least 10" }).max(1000, { message: "iteration_count cannot exceed 1000" }),
+  llm_config_id: z.string().uuid().optional(),
+  deterministic: z.object({
+    enabled: z.boolean(),
+    level: z.enum(['full', 'near', 'adaptive']).optional(),
+    seed: z.number().int().optional(),
+    allow_nondeterministic_fallback: z.boolean().optional(),
+    collect_evidence: z.boolean().optional(),
+    signing_mode: z.enum(['biaslens', 'customer']).optional(),
+    customer_key_name: z.string().max(255).optional(),
+    temperature: z.number().min(0).max(2).optional(),
+    keep_temperature_constant: z.boolean().optional(),
+  }).optional(),
+  evaluation_id: z.string().uuid().optional(),
+  scheduled: z.boolean().optional(),
+});
 
 const DEFAULT_MODEL_CONFIG = {
   provider: Deno.env.get('EVALUATION_MODEL_PROVIDER') || 'biaslens-simulator',
@@ -1700,7 +1724,18 @@ Deno.serve(async (req) => {
 
     // POST /evaluate - Run full evaluation
     if (req.method === 'POST' && (path === '' || path === '/')) {
-      const body: EvaluationRequest = await req.json()
+      // Validate input with zod schema
+      let body: EvaluationRequest
+      try {
+        const rawBody = await req.json()
+        body = EvaluationRequestSchema.parse(rawBody) as EvaluationRequest
+      } catch (e) {
+        console.error('Input validation failed:', e)
+        return new Response(
+          JSON.stringify({ error: 'Invalid input format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
       console.log('Creating evaluation for:', body.ai_system_name)
 
