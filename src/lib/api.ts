@@ -616,6 +616,64 @@ export async function loadEvaluationDetails(evaluationId: string): Promise<Evalu
 }
 
 // ============================================================================
+// CANCEL EVALUATION API
+// ============================================================================
+
+/**
+ * Cancel a running evaluation
+ * Updates the evaluation status to 'failed' with a cancellation message
+ */
+export async function cancelEvaluation(evaluationId: string): Promise<{ success: boolean; message: string }> {
+  // First check the current status
+  const { data: evaluation, error: fetchError } = await supabase
+    .from('evaluations')
+    .select('status')
+    .eq('id', evaluationId)
+    .single();
+
+  if (fetchError || !evaluation) {
+    throw new ApiError(404, 'Evaluation not found');
+  }
+
+  if (evaluation.status !== 'running' && evaluation.status !== 'pending') {
+    return { 
+      success: false, 
+      message: `Cannot cancel evaluation with status: ${evaluation.status}` 
+    };
+  }
+
+  // Update evaluation status to failed with cancellation message
+  const { error: updateError } = await supabase
+    .from('evaluations')
+    .update({
+      status: 'failed',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('id', evaluationId);
+
+  if (updateError) {
+    console.error('Error cancelling evaluation:', updateError);
+    throw new ApiError(500, 'Failed to cancel evaluation');
+  }
+
+  // Update progress record to show cancellation
+  const { error: progressError } = await supabase
+    .from('evaluation_progress')
+    .update({
+      current_phase: 'canceled',
+      message: 'Analysis canceled by user',
+      progress_percent: 0,
+    })
+    .eq('evaluation_id', evaluationId);
+
+  if (progressError) {
+    console.warn('Failed to update progress record:', progressError);
+  }
+
+  return { success: true, message: 'Evaluation canceled successfully' };
+}
+
+// ============================================================================
 // REPRO PACK API (Placeholder - table not yet created)
 // ============================================================================
 

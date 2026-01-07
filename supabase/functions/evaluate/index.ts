@@ -2043,8 +2043,25 @@ Deno.serve(async (req) => {
       // Run heuristic detection with progress updates and evidence capture
       const findings: HeuristicFindingResult[] = []
       const totalHeuristics = body.heuristic_types.length
+
+      // Helper to check if evaluation was canceled
+      const checkCanceled = async (): Promise<boolean> => {
+        const { data: currentEval } = await supabase
+          .from('evaluations')
+          .select('status')
+          .eq('id', evaluation.id)
+          .maybeSingle()
+        
+        return currentEval?.status === 'failed'
+      }
       
       for (let i = 0; i < totalHeuristics; i++) {
+        // Check for cancellation before each heuristic
+        if (await checkCanceled()) {
+          console.log(`[Background] Evaluation ${evaluation.id} was canceled, stopping processing`)
+          return // Exit the background processing
+        }
+
         const heuristicType = body.heuristic_types[i]
         const progressPercent = 10 + Math.round((i / totalHeuristics) * 60)
         
@@ -2098,6 +2115,12 @@ Deno.serve(async (req) => {
         
         // Small delay to allow realtime updates to propagate
         await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      // Final cancellation check after all heuristics
+      if (await checkCanceled()) {
+        console.log(`[Background] Evaluation ${evaluation.id} was canceled after processing, stopping`)
+        return
       }
 
       console.log(`Captured ${capturedEvidence.length} evidence entries during evaluation`)
