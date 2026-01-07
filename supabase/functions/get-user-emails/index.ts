@@ -1,4 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+// Input validation schema - limit array size to prevent abuse
+const GetUserEmailsSchema = z.object({
+  userIds: z.array(z.string().uuid({ message: "Each userId must be a valid UUID" }))
+    .min(1, { message: "userIds array must have at least 1 item" })
+    .max(100, { message: "userIds array cannot exceed 100 items" }),
+});
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,14 +46,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { userIds } = await req.json();
-
-    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-      return new Response(JSON.stringify({ error: "userIds array required" }), {
+    // Validate input with zod schema
+    let body;
+    try {
+      const rawBody = await req.json();
+      body = GetUserEmailsSchema.parse(rawBody);
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "Invalid input format" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const { userIds } = body;
 
     // Check if requesting user is a company admin (can see emails of org members)
     const { data: requestingUserProfile } = await supabaseClient

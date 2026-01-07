@@ -1,4 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+// Input validation schema
+const UpdateProfileSchema = z.object({
+  targetUserId: z.string().uuid({ message: "targetUserId must be a valid UUID" }),
+  fullName: z.string().min(1).max(255, { message: "fullName must be between 1 and 255 characters" }).optional(),
+});
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,14 +43,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { targetUserId, fullName } = await req.json();
-
-    if (!targetUserId) {
-      return new Response(JSON.stringify({ error: "targetUserId required" }), {
+    // Validate input with zod schema
+    let body;
+    try {
+      const rawBody = await req.json();
+      body = UpdateProfileSchema.parse(rawBody);
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "Invalid input format" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const { targetUserId, fullName } = body;
 
     // If editing own profile, allow
     const isOwnProfile = user.id === targetUserId;

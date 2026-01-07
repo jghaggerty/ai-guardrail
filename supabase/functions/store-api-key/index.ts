@@ -1,5 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+// Input validation schema
+const StoreApiKeySchema = z.object({
+  configId: z.string().uuid({ message: "configId must be a valid UUID" }),
+  apiKey: z.string().min(1).max(1000, { message: "apiKey must be between 1 and 1000 characters" }),
+  teamId: z.string().uuid({ message: "teamId must be a valid UUID" }),
+});
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -96,15 +104,18 @@ serve(async (req) => {
       );
     }
 
-    const body = await req.json();
-    const { configId, apiKey, teamId } = body;
-
-    if (!configId || !apiKey || !teamId) {
+    // Validate input with zod schema
+    let body;
+    try {
+      const rawBody = await req.json();
+      body = StoreApiKeySchema.parse(rawBody);
+    } catch (e) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: configId, apiKey, teamId' }),
+        JSON.stringify({ error: 'Invalid input format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    const { configId, apiKey, teamId } = body;
 
     // Validate that the user belongs to this team
     const { data: profile, error: profileError } = await supabase
