@@ -1699,10 +1699,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Get user's team_id and company_id from profiles
+    // Get user's team_id from profiles, company_id from teams
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('team_id, company_id')
+      .select('team_id')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -1715,7 +1715,17 @@ Deno.serve(async (req) => {
     }
 
     const teamId = profile?.team_id
-    const companyId = profile?.company_id
+    
+    // Get company_id from team if needed
+    let companyId: string | null = null
+    if (teamId) {
+      const { data: team } = await supabase
+        .from('teams')
+        .select('company_id')
+        .eq('id', teamId)
+        .maybeSingle()
+      companyId = team?.company_id ?? null
+    }
 
     const url = new URL(req.url)
     const path = url.pathname.replace('/evaluate', '')
