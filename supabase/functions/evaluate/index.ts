@@ -1675,10 +1675,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Get user's team_id from profiles
+    // Get user's team_id and company_id from profiles
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('team_id')
+      .select('team_id, company_id')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -1691,6 +1691,7 @@ Deno.serve(async (req) => {
     }
 
     const teamId = profile?.team_id
+    const companyId = profile?.company_id
 
     const url = new URL(req.url)
     const path = url.pathname.replace('/evaluate', '')
@@ -1916,6 +1917,7 @@ Deno.serve(async (req) => {
         .insert({
           user_id: user.id,
           team_id: teamId,
+          company_id: companyId,
           ai_system_name: body.ai_system_name,
           heuristic_types: body.heuristic_types,
           iteration_count: body.iteration_count,
