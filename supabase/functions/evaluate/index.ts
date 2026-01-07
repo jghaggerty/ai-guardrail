@@ -2009,7 +2009,8 @@ Deno.serve(async (req) => {
           const capturedEvidence: CapturedEvidence[] = []
           const evaluationRunId = evaluation.id
 
-          const providerScheduler = new ProviderCallScheduler(providerPolicy)
+          // Use effectiveProviderPolicy for rate limiting when using real LLM client
+          const providerScheduler = new ProviderCallScheduler(llmClient ? effectiveProviderPolicy : providerPolicy)
 
           // Capture repro pack metadata without storing raw prompts/outputs
           const reproCaptureEntries: ReproCaptureEntry[] = []

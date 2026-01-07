@@ -268,14 +268,19 @@ export class TestRunner implements ITestRunner {
     // Use real LLM client if available
     if (this.llmClient) {
       try {
+        console.log(`[LLM] Calling API for test case ${testCase.id}, iteration ${iteration}`);
         const prompt = this.buildPromptForTestCase(testCase, iteration);
+        console.log(`[LLM] Prompt length: ${prompt.length} chars`);
+        
         const response = await this.llmClient.generateCompletion(prompt, {
           ...this.llmOptions,
           maxTokens: this.llmOptions?.maxTokens ?? 1024,
         });
+        
+        console.log(`[LLM] Response received for ${testCase.id}, iteration ${iteration}, length: ${response.content.length}`);
         return response.content;
       } catch (error) {
-        console.error(`LLM call failed for ${testCase.id}, iteration ${iteration}:`, error);
+        console.error(`[LLM] API call failed for ${testCase.id}, iteration ${iteration}:`, error);
         throw error;
       }
     }
