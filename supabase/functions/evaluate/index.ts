@@ -540,16 +540,21 @@ async function importSigningKey(pem: string): Promise<CryptoKey> {
   )
 }
 
-async function signHash(privateKeyPem: string, contentHash: string): Promise<string> {
-  const key = await importSigningKey(privateKeyPem)
-  const encoder = new TextEncoder()
-  const signatureBuffer = await crypto.subtle.sign(
-    { name: 'RSASSA-PKCS1-v1_5' },
-    key,
-    encoder.encode(contentHash)
-  )
+async function signHash(privateKeyPem: string, contentHash: string): Promise<string | null> {
+  try {
+    const key = await importSigningKey(privateKeyPem)
+    const encoder = new TextEncoder()
+    const signatureBuffer = await crypto.subtle.sign(
+      { name: 'RSASSA-PKCS1-v1_5' },
+      key,
+      encoder.encode(contentHash)
+    )
 
-  return bufferToBase64(signatureBuffer)
+    return bufferToBase64(signatureBuffer)
+  } catch (error) {
+    console.warn('Failed to sign repro pack hash - signing key may be invalid or malformed:', error)
+    return null
+  }
 }
 
 function truncateHash(hash: string, length: number = 12): string {
@@ -578,19 +583,16 @@ async function decryptPrivateKey(encryptedData: string, secret: string): Promise
   return decoder.decode(decrypted)
 }
 
-async function resolveSigningMaterial(supabase: SupabaseClient, teamId?: string): Promise<SigningMaterial> {
+async function resolveSigningMaterial(supabase: SupabaseClient, teamId?: string): Promise<SigningMaterial | null> {
   const defaultPrivateKey = Deno.env.get('REPRO_PACK_SIGNING_PRIVATE_KEY')
   const defaultPublicKey = Deno.env.get('REPRO_PACK_SIGNING_PUBLIC_KEY')
   const defaultSigningKeyId = Deno.env.get('REPRO_PACK_SIGNING_KEY_ID') || 'default'
   const defaultSigningAuthority = Deno.env.get('REPRO_PACK_SIGNING_AUTHORITY') || 'BiasLens'
 
   if (!teamId) {
-    if (!defaultPrivateKey) {
-      throw new Error('Repro pack signing key not configured')
-    }
-
-    if (!defaultPublicKey) {
-      throw new Error('Repro pack signing public key not configured')
+    if (!defaultPrivateKey || !defaultPublicKey) {
+      console.warn('Repro pack signing keys not configured - repro packs will be unsigned')
+      return null
     }
 
     return {
@@ -621,36 +623,39 @@ async function resolveSigningMaterial(supabase: SupabaseClient, teamId?: string)
       .maybeSingle()
 
     if (keyError || !activeKey) {
-      console.error('Active signing key not found for team', teamId, keyError)
-      throw new Error('Active customer signing key not found')
+      console.warn('Active signing key not found for team', teamId, '- repro packs will be unsigned')
+      return null
     }
 
     if (activeKey.status !== 'active') {
-      throw new Error('Customer signing key is not active')
+      console.warn('Customer signing key is not active for team', teamId, '- repro packs will be unsigned')
+      return null
     }
 
     const encryptionSecret = Deno.env.get('SIGNING_KEY_ENCRYPTION_SECRET')
     if (!encryptionSecret) {
-      throw new Error('SIGNING_KEY_ENCRYPTION_SECRET not configured')
+      console.warn('SIGNING_KEY_ENCRYPTION_SECRET not configured - repro packs will be unsigned')
+      return null
     }
 
-    const privateKeyPem = await decryptPrivateKey(activeKey.private_key_encrypted, encryptionSecret)
-
-    return {
-      signingAuthority: activeKey.signing_authority,
-      signingKeyId: activeKey.signing_key_id,
-      signingMode: 'customer',
-      privateKeyPem,
-      publicKeyPem: activeKey.public_key,
+    try {
+      const privateKeyPem = await decryptPrivateKey(activeKey.private_key_encrypted, encryptionSecret)
+      return {
+        signingAuthority: activeKey.signing_authority,
+        signingKeyId: activeKey.signing_key_id,
+        signingMode: 'customer',
+        privateKeyPem,
+        publicKeyPem: activeKey.public_key,
+      }
+    } catch (error) {
+      console.warn('Failed to decrypt customer signing key for team', teamId, error, '- repro packs will be unsigned')
+      return null
     }
   }
 
-  if (!defaultPrivateKey) {
-    throw new Error('Repro pack signing key not configured')
-  }
-
-  if (!defaultPublicKey) {
-    throw new Error('Repro pack signing public key not configured')
+  if (!defaultPrivateKey || !defaultPublicKey) {
+    console.warn('Repro pack signing keys not configured - repro packs will be unsigned')
+    return null
   }
 
   return {
@@ -3224,16 +3229,25 @@ Deno.serve(async (req) => {
           evidenceStorageType: evidenceConfig?.storageType,
           replayEntries: reproCaptureEntries,
         }),
-        signing: {
+        signing: signingMaterial ? {
           mode: signingMaterial.signingMode,
           authority: signingMaterial.signingAuthority,
           key_id: signingMaterial.signingKeyId,
           public_key: signingMaterial.publicKeyPem,
+        } : {
+          mode: 'unavailable',
+          status: 'Signing keys not configured',
         },
       }
 
       const { hash: contentHash } = await computeReproPackHash(reproPackContent)
-      const signature = await signHash(signingMaterial.privateKeyPem, contentHash)
+      const signature = signingMaterial 
+        ? await signHash(signingMaterial.privateKeyPem, contentHash)
+        : null
+
+      if (!signature && signingMaterial) {
+        console.warn('Failed to sign repro pack despite having signing material - continuing with unsigned pack')
+      }
 
       const { data: reproPackRecord, error: reproPackError } = await supabase
         .from('repro_packs')
@@ -3241,8 +3255,8 @@ Deno.serve(async (req) => {
           evaluation_run_id: evaluation.id,
           content_hash: contentHash,
           signature,
-          signing_authority: signingMaterial.signingAuthority,
-          signing_key_id: signingMaterial.signingKeyId,
+          signing_authority: signingMaterial?.signingAuthority ?? null,
+          signing_key_id: signingMaterial?.signingKeyId ?? null,
           created_at: completionTimestamp,
           repro_pack_content: reproPackContent,
         })
