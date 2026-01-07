@@ -330,6 +330,7 @@ export function useEvaluationProgress(options: UseEvaluationProgressOptions = {}
     currentHeuristic: progress?.current_heuristic,
     testsCompleted: progress?.tests_completed ?? 0,
     testsTotal: progress?.tests_total ?? 0,
+    evaluationId: progress?.evaluation_id ?? null,
     message: getProgressMessage(),
     phaseLabel: getPhaseLabel(),
     eta: getEta(),

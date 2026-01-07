@@ -17,8 +17,8 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { runFullEvaluation, ApiError, fetchReproPack, verifyReproPackSignature, ReproPackVerificationResult } from '@/lib/api';
-import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History, X, Copy, Check, Info, Database, Settings, Users, Bell } from 'lucide-react';
+import { runFullEvaluation, ApiError, fetchReproPack, verifyReproPackSignature, ReproPackVerificationResult, cancelEvaluation } from '@/lib/api';
+import { Brain, Download, ToggleLeft, TrendingDown, Activity, LogOut, RotateCcw, History, X, Copy, Check, Info, Database, Settings, Users, Bell, StopCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun | null } = {}) => {
@@ -30,6 +30,8 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
   const [selectedFinding, setSelectedFinding] = useState<HeuristicFinding | null>(null);
   const [viewMode, setViewMode] = useState<'technical' | 'simplified'>('technical');
   const [isRunning, setIsRunning] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [currentEvaluationId, setCurrentEvaluationId] = useState<string | null>(null);
   const [activeConfig, setActiveConfig] = useState<EvaluationConfig | null>(null);
   const [copiedReferenceId, setCopiedReferenceId] = useState(false);
   const [isDownloadingReproPack, setIsDownloadingReproPack] = useState(false);
@@ -114,12 +116,20 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
     lastUpdate,
     notificationPermission,
     requestNotificationPermission,
-    progressHistory
+    progressHistory,
+    evaluationId: progressEvaluationId
   } = useEvaluationProgress({
     onComplete: () => {
       console.log('Evaluation completed via realtime');
     }
   });
+
+  // Sync evaluation ID from progress updates
+  useEffect(() => {
+    if (progressEvaluationId && isRunning && !currentEvaluationId) {
+      setCurrentEvaluationId(progressEvaluationId);
+    }
+  }, [progressEvaluationId, isRunning, currentEvaluationId]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -129,6 +139,7 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
   const handleStartEvaluation = async (config: EvaluationConfig) => {
     setIsRunning(true);
     setActiveConfig(config);
+    setCurrentEvaluationId(null);
     resetProgress();
 
     toast.info('Starting diagnostic analysis...');
@@ -136,6 +147,7 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
     try {
       const run = await runFullEvaluation(config);
 
+      setCurrentEvaluationId(run.id);
       setEvaluationRun(run);
       toast.success('Analysis completed successfully');
     } catch (error) {
@@ -152,6 +164,37 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
       setIsRunning(false);
       resetProgress();
       setActiveConfig(null);
+      setCurrentEvaluationId(null);
+    }
+  };
+
+  const handleCancelEvaluation = async () => {
+    if (!currentEvaluationId) {
+      toast.error('No evaluation to cancel');
+      return;
+    }
+
+    setIsCanceling(true);
+    try {
+      const result = await cancelEvaluation(currentEvaluationId);
+      if (result.success) {
+        toast.success('Analysis canceled');
+        setIsRunning(false);
+        resetProgress();
+        setActiveConfig(null);
+        setCurrentEvaluationId(null);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      console.error('Failed to cancel evaluation:', error);
+      if (error instanceof ApiError) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to cancel analysis');
+      }
+    } finally {
+      setIsCanceling(false);
     }
   };
 
@@ -458,11 +501,22 @@ const Index = ({ initialEvaluationRun }: { initialEvaluationRun?: EvaluationRun 
                   </p>
                 )}
               </div>
-              {lastUpdate && (
-                <p className="text-xs text-muted-foreground">
-                  Last update: {lastUpdate}
-                </p>
-              )}
+              <div className="flex items-center gap-3">
+                {lastUpdate && (
+                  <p className="text-xs text-muted-foreground">
+                    Last update: {lastUpdate}
+                  </p>
+                )}
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={handleCancelEvaluation}
+                  disabled={isCanceling || !currentEvaluationId}
+                >
+                  <StopCircle className="w-4 h-4 mr-2" />
+                  {isCanceling ? 'Canceling...' : 'Cancel Analysis'}
+                </Button>
+              </div>
             </div>
             {(testsTotal > 0 || activeConfig?.deterministic?.enabled || (activeConfig?.iterations ?? 0) > 1) && (
               <div className="mt-4 grid gap-4 md:grid-cols-2">
