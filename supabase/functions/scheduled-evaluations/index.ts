@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
             .single()
 
           const heuristicTypes = settings?.selected_heuristics || ['anchoring', 'loss_aversion', 'confirmation_bias']
-          const iterationCount = settings?.sample_size || 100
+          const iterationCount = settings?.sample_size || 5
 
           // Create a new evaluation record
           const { data: evaluation, error: createError } = await supabase
