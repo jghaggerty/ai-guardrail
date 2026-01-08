@@ -138,6 +138,59 @@ export type Database = {
           },
         ]
       }
+      evaluation_checkpoints: {
+        Row: {
+          captured_evidence: Json | null
+          created_at: string
+          current_heuristic_index: number
+          current_iteration: number
+          current_test_case_index: number
+          evaluation_id: string
+          id: string
+          last_heartbeat_at: string
+          partial_findings: Json | null
+          partial_scores: Json | null
+          repro_capture_entries: Json | null
+          updated_at: string
+        }
+        Insert: {
+          captured_evidence?: Json | null
+          created_at?: string
+          current_heuristic_index?: number
+          current_iteration?: number
+          current_test_case_index?: number
+          evaluation_id: string
+          id?: string
+          last_heartbeat_at?: string
+          partial_findings?: Json | null
+          partial_scores?: Json | null
+          repro_capture_entries?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          captured_evidence?: Json | null
+          created_at?: string
+          current_heuristic_index?: number
+          current_iteration?: number
+          current_test_case_index?: number
+          evaluation_id?: string
+          id?: string
+          last_heartbeat_at?: string
+          partial_findings?: Json | null
+          partial_scores?: Json | null
+          repro_capture_entries?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evaluation_checkpoints_evaluation_id_fkey"
+            columns: ["evaluation_id"]
+            isOneToOne: true
+            referencedRelation: "evaluations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evaluation_progress: {
         Row: {
           created_at: string

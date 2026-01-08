@@ -74,7 +74,7 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
   const [loading, setLoading] = useState(true);
   const [systemName, setSystemName] = useState('');
   const [selectedLlmConfigId, setSelectedLlmConfigId] = useState<string | undefined>(undefined);
-  const [iterations, setIterations] = useState(100);
+  const [iterations, setIterations] = useState(5);
   const [selectedHeuristics, setSelectedHeuristics] = useState<HeuristicType[]>([
     'anchoring',
     'loss_aversion',
@@ -261,7 +261,7 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
             disabled={isRunning}
           />
           <p className="text-xs text-muted-foreground mt-1.5">
-            Higher iterations improve statistical reliability (recommended: 100+)
+            Higher iterations improve statistical reliability (default: 5, max recommended: 50)
           </p>
         </div>
 

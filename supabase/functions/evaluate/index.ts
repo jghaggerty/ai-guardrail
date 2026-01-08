@@ -289,6 +289,104 @@ function formatDuration(ms: number): string {
   return `${minutes}m ${remaining}s`
 }
 
+// Checkpoint management for resumable evaluations
+interface EvaluationCheckpoint {
+  id?: string
+  evaluation_id: string
+  current_heuristic_index: number
+  current_test_case_index: number
+  current_iteration: number
+  partial_findings: HeuristicFindingResult[]
+  partial_scores: Record<string, number[]>
+  captured_evidence: CapturedEvidence[]
+  repro_capture_entries: ReproCaptureEntry[]
+  last_heartbeat_at: string
+}
+
+// Wall clock timeout threshold - save checkpoint before this to allow resume
+// Deno edge functions have ~400s wall clock limit, we save checkpoint at ~300s
+const WALL_CLOCK_CHECKPOINT_MS = 300_000 // 5 minutes
+const HEARTBEAT_INTERVAL_MS = 30_000 // 30 seconds
+
+async function saveCheckpoint(
+  supabase: SupabaseClient,
+  checkpoint: EvaluationCheckpoint
+): Promise<void> {
+  const { error } = await supabase
+    .from('evaluation_checkpoints')
+    .upsert({
+      evaluation_id: checkpoint.evaluation_id,
+      current_heuristic_index: checkpoint.current_heuristic_index,
+      current_test_case_index: checkpoint.current_test_case_index,
+      current_iteration: checkpoint.current_iteration,
+      partial_findings: checkpoint.partial_findings,
+      partial_scores: checkpoint.partial_scores,
+      captured_evidence: checkpoint.captured_evidence,
+      repro_capture_entries: checkpoint.repro_capture_entries,
+      last_heartbeat_at: new Date().toISOString(),
+    }, { onConflict: 'evaluation_id' })
+
+  if (error) {
+    console.error('Failed to save checkpoint:', error)
+  } else {
+    console.log(`[Checkpoint] Saved at heuristic ${checkpoint.current_heuristic_index}`)
+  }
+}
+
+async function loadCheckpoint(
+  supabase: SupabaseClient,
+  evaluationId: string
+): Promise<EvaluationCheckpoint | null> {
+  const { data, error } = await supabase
+    .from('evaluation_checkpoints')
+    .select('*')
+    .eq('evaluation_id', evaluationId)
+    .maybeSingle()
+
+  if (error || !data) {
+    return null
+  }
+
+  return {
+    id: data.id,
+    evaluation_id: data.evaluation_id,
+    current_heuristic_index: data.current_heuristic_index,
+    current_test_case_index: data.current_test_case_index,
+    current_iteration: data.current_iteration,
+    partial_findings: (data.partial_findings || []) as HeuristicFindingResult[],
+    partial_scores: (data.partial_scores || {}) as Record<string, number[]>,
+    captured_evidence: (data.captured_evidence || []) as CapturedEvidence[],
+    repro_capture_entries: (data.repro_capture_entries || []) as ReproCaptureEntry[],
+    last_heartbeat_at: data.last_heartbeat_at,
+  }
+}
+
+async function deleteCheckpoint(
+  supabase: SupabaseClient,
+  evaluationId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('evaluation_checkpoints')
+    .delete()
+    .eq('evaluation_id', evaluationId)
+
+  if (error) {
+    console.error('Failed to delete checkpoint:', error)
+  } else {
+    console.log(`[Checkpoint] Deleted for evaluation ${evaluationId}`)
+  }
+}
+
+async function updateHeartbeat(
+  supabase: SupabaseClient,
+  evaluationId: string
+): Promise<void> {
+  await supabase
+    .from('evaluation_checkpoints')
+    .update({ last_heartbeat_at: new Date().toISOString() })
+    .eq('evaluation_id', evaluationId)
+}
+
 interface IterationExecutionOptions {
   scheduler?: ProviderCallScheduler
   onThrottle?: (ctx: RateLimitDelayContext) => Promise<void> | void
@@ -2031,6 +2129,10 @@ Deno.serve(async (req) => {
 
       // Define the background processing function
       const runEvaluationInBackground = async () => {
+        // Track when this processing started for wall clock timeout detection
+        const processingStartTime = Date.now()
+        let lastHeartbeatTime = Date.now()
+        
         try {
           console.log(`[Background] Starting evaluation processing for ${evaluation.id}`)
 
@@ -2056,15 +2158,48 @@ Deno.serve(async (req) => {
             }
           }
 
+          // Check for existing checkpoint to resume from
+          const existingCheckpoint = await loadCheckpoint(supabase, evaluation.id)
+          let startHeuristicIndex = 0
+          
           // Initialize evidence capture array if collector mode is enabled
-          const capturedEvidence: CapturedEvidence[] = []
+          let capturedEvidence: CapturedEvidence[] = []
+          let reproCaptureEntries: ReproCaptureEntry[] = []
+          let findings: HeuristicFindingResult[] = []
+          
+          if (existingCheckpoint) {
+            console.log(`[Background] Resuming from checkpoint at heuristic index ${existingCheckpoint.current_heuristic_index}`)
+            startHeuristicIndex = existingCheckpoint.current_heuristic_index
+            capturedEvidence = existingCheckpoint.captured_evidence
+            reproCaptureEntries = existingCheckpoint.repro_capture_entries
+            findings = existingCheckpoint.partial_findings
+            
+            await updateProgress(
+              10 + Math.round((startHeuristicIndex / body.heuristic_types.length) * 60),
+              'detecting',
+              body.heuristic_types[startHeuristicIndex] || null,
+              startHeuristicIndex,
+              `Resuming analysis from checkpoint...`
+            )
+          } else {
+            // Create initial checkpoint
+            await saveCheckpoint(supabase, {
+              evaluation_id: evaluation.id,
+              current_heuristic_index: 0,
+              current_test_case_index: 0,
+              current_iteration: 0,
+              partial_findings: [],
+              partial_scores: {},
+              captured_evidence: [],
+              repro_capture_entries: [],
+              last_heartbeat_at: new Date().toISOString(),
+            })
+          }
+          
           const evaluationRunId = evaluation.id
 
           // Use effectiveProviderPolicy for rate limiting when using real LLM client
           const providerScheduler = new ProviderCallScheduler(llmClient ? effectiveProviderPolicy : providerPolicy)
-
-          // Capture repro pack metadata without storing raw prompts/outputs
-          const reproCaptureEntries: ReproCaptureEntry[] = []
           
           // Generate evaluation run reference ID (format: evaluation-run-{uuid})
           const evaluationRunReferenceId = evidenceCollector
@@ -2089,10 +2224,11 @@ Deno.serve(async (req) => {
       }
 
       // Update progress: starting detection
-      await updateProgress(10, 'detecting', null, 0, 'Preparing detection algorithms...')
+      if (!existingCheckpoint) {
+        await updateProgress(10, 'detecting', null, 0, 'Preparing detection algorithms...')
+      }
 
       // Run heuristic detection with progress updates and evidence capture
-      const findings: HeuristicFindingResult[] = []
       const totalHeuristics = body.heuristic_types.length
 
       // Helper to check if evaluation was canceled
@@ -2106,11 +2242,54 @@ Deno.serve(async (req) => {
         return currentEval?.status === 'failed'
       }
       
-      for (let i = 0; i < totalHeuristics; i++) {
+      // Helper to check if we're approaching wall clock timeout
+      const shouldSaveCheckpointAndExit = (): boolean => {
+        const elapsed = Date.now() - processingStartTime
+        return elapsed >= WALL_CLOCK_CHECKPOINT_MS
+      }
+      
+      // Helper to update heartbeat periodically
+      const maybeUpdateHeartbeat = async () => {
+        const now = Date.now()
+        if (now - lastHeartbeatTime >= HEARTBEAT_INTERVAL_MS) {
+          await updateHeartbeat(supabase, evaluation.id)
+          lastHeartbeatTime = now
+        }
+      }
+      
+      for (let i = startHeuristicIndex; i < totalHeuristics; i++) {
         // Check for cancellation before each heuristic
         if (await checkCanceled()) {
           console.log(`[Background] Evaluation ${evaluation.id} was canceled, stopping processing`)
+          await deleteCheckpoint(supabase, evaluation.id)
           return // Exit the background processing
+        }
+        
+        // Check if we need to save checkpoint and exit before wall clock timeout
+        if (shouldSaveCheckpointAndExit()) {
+          console.log(`[Background] Approaching wall clock timeout, saving checkpoint at heuristic ${i}`)
+          await saveCheckpoint(supabase, {
+            evaluation_id: evaluation.id,
+            current_heuristic_index: i,
+            current_test_case_index: 0,
+            current_iteration: 0,
+            partial_findings: findings,
+            partial_scores: {},
+            captured_evidence: capturedEvidence,
+            repro_capture_entries: reproCaptureEntries,
+            last_heartbeat_at: new Date().toISOString(),
+          })
+          
+          await updateProgress(
+            10 + Math.round((i / totalHeuristics) * 60),
+            'paused',
+            body.heuristic_types[i],
+            i,
+            'Evaluation paused - will resume automatically...'
+          )
+          
+          console.log(`[Background] Checkpoint saved, exiting to allow resume`)
+          return // Exit - cleanup function or scheduler will resume
         }
 
         const heuristicType = body.heuristic_types[i]
@@ -2123,6 +2302,9 @@ Deno.serve(async (req) => {
           i,
           `Analyzing ${heuristicType.replace(/_/g, ' ')}...`
         )
+        
+        // Update heartbeat
+        await maybeUpdateHeartbeat()
         
         // Run detection for this heuristic (capture evidence if collector mode is enabled)
         const detectors: Record<HeuristicType, (
@@ -2158,11 +2340,26 @@ Deno.serve(async (req) => {
                 i,
                 message,
               )
+              // Update heartbeat during throttling
+              await maybeUpdateHeartbeat()
             }
           },
           llmClient
         )
         findings.push(finding)
+        
+        // Save checkpoint after each heuristic completes
+        await saveCheckpoint(supabase, {
+          evaluation_id: evaluation.id,
+          current_heuristic_index: i + 1, // Next heuristic to process
+          current_test_case_index: 0,
+          current_iteration: 0,
+          partial_findings: findings,
+          partial_scores: {},
+          captured_evidence: capturedEvidence,
+          repro_capture_entries: reproCaptureEntries,
+          last_heartbeat_at: new Date().toISOString(),
+        })
         
         // Small delay to allow realtime updates to propagate
         await new Promise(resolve => setTimeout(resolve, 100))
@@ -2171,6 +2368,7 @@ Deno.serve(async (req) => {
       // Final cancellation check after all heuristics
       if (await checkCanceled()) {
         console.log(`[Background] Evaluation ${evaluation.id} was canceled after processing, stopping`)
+        await deleteCheckpoint(supabase, evaluation.id)
         return
       }
 
@@ -3270,6 +3468,9 @@ Deno.serve(async (req) => {
 
           // Update progress: complete
           await updateProgress(100, 'completed', null, totalHeuristics, 'Evaluation complete!')
+          
+          // Delete checkpoint on successful completion
+          await deleteCheckpoint(supabase, evaluation.id)
 
           // Clean up progress record after a short delay
           setTimeout(async () => {
