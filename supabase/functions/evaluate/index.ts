@@ -3292,7 +3292,6 @@ Deno.serve(async (req) => {
         achieved_level?: string
         parameters_used?: Record<string, number | undefined>
         confidence_intervals?: Record<string, unknown>
-        per_iteration_results?: Array<Record<string, unknown>>
       } = {
         status: 'completed',
         overall_score: overallScore,
@@ -3304,7 +3303,6 @@ Deno.serve(async (req) => {
         achieved_level: achievedLevel,
         parameters_used: parametersUsed,
         confidence_intervals: confidenceIntervals,
-        per_iteration_results: perIterationResults,
       }
       
       // Add evidence reference ID and storage type if collector mode was used and evidence was stored
