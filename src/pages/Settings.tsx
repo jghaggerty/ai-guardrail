@@ -877,8 +877,33 @@ const Settings = () => {
                 <h3 className="font-semibold text-card-foreground mb-4">Evaluation Parameters</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 bg-muted/50 rounded-lg">
-                    <Label className="text-xs text-muted-foreground">Sample Size</Label>
-                    <p className="text-lg font-semibold text-card-foreground">{evalSettings.sample_size}</p>
+                    <Label htmlFor="sample-size" className="text-xs text-muted-foreground">Sample Size (iterations)</Label>
+                    <Input
+                      id="sample-size"
+                      type="number"
+                      min={1}
+                      max={1000}
+                      value={evalSettings.sample_size}
+                      onChange={(e) => {
+                        const value = Math.max(1, Math.min(1000, Number(e.target.value)));
+                        setEvalSettings(prev => prev ? { ...prev, sample_size: value } : prev);
+                      }}
+                      onBlur={async () => {
+                        try {
+                          const { error } = await supabase
+                            .from('evaluation_settings')
+                            .update({ sample_size: evalSettings.sample_size, updated_at: new Date().toISOString() })
+                            .eq('id', evalSettings.id);
+                          if (error) throw error;
+                          toast.success('Sample size updated');
+                        } catch (error) {
+                          console.error('Error updating sample size:', error);
+                          toast.error('Failed to update sample size');
+                        }
+                      }}
+                      className="mt-1 h-9"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">1–1000</p>
                   </div>
                   <div className="p-4 bg-muted/50 rounded-lg">
                     <Label className="text-xs text-muted-foreground">Temperature</Label>
