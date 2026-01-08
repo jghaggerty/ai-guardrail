@@ -881,11 +881,11 @@ const Settings = () => {
                     <Input
                       id="sample-size"
                       type="number"
-                      min={100}
+                      min={1}
                       max={1000}
                       value={evalSettings.sample_size}
                       onChange={(e) => {
-                        const value = Math.max(100, Math.min(1000, Number(e.target.value)));
+                        const value = Math.max(1, Math.min(1000, Number(e.target.value)));
                         setEvalSettings(prev => prev ? { ...prev, sample_size: value } : prev);
                       }}
                       onBlur={async () => {
@@ -903,7 +903,7 @@ const Settings = () => {
                       }}
                       className="mt-1 h-9"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">100–1000</p>
+                    <p className="text-xs text-muted-foreground mt-1">1–1000</p>
                   </div>
                   <div className="p-4 bg-muted/50 rounded-lg">
                     <Label className="text-xs text-muted-foreground">Temperature</Label>
