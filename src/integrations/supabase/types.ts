@@ -625,6 +625,47 @@ export type Database = {
           },
         ]
       }
+      repro_packs: {
+        Row: {
+          content_hash: string
+          created_at: string
+          evaluation_run_id: string
+          id: string
+          repro_pack_content: Json
+          signature: string | null
+          signing_authority: string | null
+          signing_key_id: string | null
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          evaluation_run_id: string
+          id?: string
+          repro_pack_content: Json
+          signature?: string | null
+          signing_authority?: string | null
+          signing_key_id?: string | null
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          evaluation_run_id?: string
+          id?: string
+          repro_pack_content?: Json
+          signature?: string | null
+          signing_authority?: string | null
+          signing_key_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repro_packs_evaluation_run_id_fkey"
+            columns: ["evaluation_run_id"]
+            isOneToOne: true
+            referencedRelation: "evaluations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_invitations: {
         Row: {
           accepted_at: string | null
