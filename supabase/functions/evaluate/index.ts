@@ -73,7 +73,7 @@ const EvaluationRequestSchema = z.object({
   heuristic_types: z.array(z.enum(['anchoring', 'loss_aversion', 'sunk_cost', 'confirmation_bias', 'availability_heuristic']))
     .min(1, { message: "heuristic_types must have at least 1 item" })
     .max(10, { message: "heuristic_types cannot exceed 10 items" }),
-  iteration_count: z.number().int().min(10, { message: "iteration_count must be at least 10" }).max(1000, { message: "iteration_count cannot exceed 1000" }),
+  iteration_count: z.number().int().min(1, { message: "iteration_count must be at least 1" }).max(1000, { message: "iteration_count cannot exceed 1000" }),
   llm_config_id: z.string().uuid().optional(),
   deterministic: z.object({
     enabled: z.boolean(),
@@ -2052,8 +2052,8 @@ Deno.serve(async (req) => {
       const effectiveProviderPolicy = getProviderPolicy(effectiveProvider)
 
       // Validate iteration count
-      if (body.iteration_count < 10 || body.iteration_count > 1000) {
-        return new Response(JSON.stringify({ error: 'Iteration count must be between 10 and 1000' }), {
+      if (body.iteration_count < 1 || body.iteration_count > 1000) {
+        return new Response(JSON.stringify({ error: 'Iteration count must be between 1 and 1000' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })

@@ -253,7 +253,7 @@ export const ConfigurationPanel = ({ onStartEvaluation, isRunning }: Configurati
           <Input
             id="iterations"
             type="number"
-            min={10}
+            min={1}
             max={1000}
             value={iterations}
             onChange={(e) => setIterations(Number(e.target.value))}
